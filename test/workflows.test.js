@@ -171,3 +171,17 @@ test('direct menu commands keep SQL permissions without accepting claimed author
   assert.equal((await chat({user_id:4,message:'سياسة الشركة'})).policy_ids.length,6);
  } finally {await close();}
 });
+
+test('task-update inquiry lists only tasks in the actor scope before asking for number and status',async()=>{
+ const {store,close}=await setup();
+ try {
+  await store.create(1,4,'مشاريع مسموحة','2026-10-15T10:00:00+03:00');
+  await store.create(1,5,'مالية خاصة','2026-10-15T10:00:00+03:00');
+  const chat=createChat({store,clock:()=>now,ai:async()=>({...base,action:'update_task'})});
+  const own=await chat({user_id:4,message:'أبي أحدث حالة مهمة'});
+  assert.equal(own.action_type,'inquiry');assert.equal(own.tasks.length,1);assert.match(own.message,/اختر رقم المهمة/);assert.doesNotMatch(own.message,/مالية خاصة/);
+  const supervisor=await chat({user_id:2,message:'تحديث مهمة'});assert.equal(supervisor.tasks.length,1);
+  const manager=await chat({user_id:1,message:'تحديث مهمة'});assert.equal(manager.tasks.length,2);
+  assert.ok(manager.tasks.every(t=>t.status==='pending'));
+ }finally{await close();}
+});

@@ -52,6 +52,14 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
       await audit(client,actor.id,intent.action,{count:rows.length});
       return {action:intent.action,requests:rows,reply:rows.length ? (reports?'متابعة التقارير الطبية:\n':approvals?'طلبات بانتظار اعتمادك:\n':'طلباتك:\n')+rows.map(describe).join('\n') : (reports?'لا توجد تقارير طبية لمتابعتها في قسمك.':approvals?'لا توجد طلبات بانتظار اعتمادك.':'لا توجد طلبات لك.')};
     }
+    if(intent.action==='update_task'&&!Number.isSafeInteger(intent.record_id)) {
+      const tasks=await store.list(actor.id,undefined,actor.role!=='employee',actor.role==='supervisor');
+      await audit(client,actor.id,'list_tasks',{count:tasks.length,source:'update_task'});
+      const labels={pending:'معلقة',in_progress:'قيد التنفيذ',completed:'مكتملة'};
+      return {action:'update_task',action_type:'inquiry',tasks,reply:tasks.length
+        ? tasks.map(t=>`#${t.id} ${t.description} — ${labels[t.status]||t.status}`).join('\n')+'\nاختر رقم المهمة وأدخل الحالة الجديدة: معلقة، قيد التنفيذ، أو مكتملة. التحديث خلال يوم المهمة وقبل نهاية الدوام.'
+        : 'لا توجد مهام متاحة للتحديث ضمن صلاحيات حسابك.'};
+    }
     if (['decide_request','submit_report','update_task'].includes(intent.action) && !Number.isSafeInteger(intent.record_id)) throw new WorkflowError(intent.action==='submit_report'?'حدد رقم سجل العودة من الإجازة المرضية لإرفاق التقرير به. هذا ليس طلب موافقة أو رقم مهمة.':intent.action==='update_task'?'حدد رقم المهمة المطلوب تحديثها.':'حدد رقم طلب الاعتماد.');
     if(intent.action==='create_request') {
       if (intent.target !== 'self') throw new WorkflowError('طلبات الإجازة والعمل عن بعد والمصروفات تُقدّم لحسابك فقط.',false,true);
