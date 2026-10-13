@@ -14,6 +14,7 @@ const actions=[
  ['policy','سياسة الشركة','سياسة الشركة'],
  ['department','مهام القسم','مهام القسم',['supervisor']],
  ['company','كل المهام','كل المهام',['manager']],
+ ['audit','سجل العمليات','سجل العمليات',['supervisor','manager']],
  ['approvals','طلبات للاعتماد','طلبات للاعتماد',['supervisor','manager']],
  ['decision','اعتماد أو رفض طلب','أريد اتخاذ قرار بشأن طلب',['supervisor','manager']],
  ['reports','متابعة التقارير الطبية','متابعة التقارير',['supervisor']],

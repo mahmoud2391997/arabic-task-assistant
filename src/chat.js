@@ -8,6 +8,7 @@ function commandIntent(message) {
   const text=normalize(message).replace(/ة/g,'ه').trim();
   const base={target:'self',assignee_name:'',description:'',date_kind:'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]};
   const commands={
+    'سجل العمليات':{action:'list_audit'},'audit log':{action:'list_audit'},
     'مهامي':{action:'list_tasks'},'كل المهام':{action:'list_tasks',target:'company'},
     'مهام القسم':{action:'list_tasks',target:'department'},'طلباتي':{action:'list_requests'},
     'طلبات للاعتماد':{action:'list_approvals'},'متابعه التقارير':{action:'list_reports'},
@@ -37,6 +38,13 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     const clarify = reply => finish({ action:'clarify', reply });
     const reject = () => finish({ action:'reject', reply:'لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين.' });
     if (intent.action === 'clarify') return clarify('الطلب غير واضح. اكتب «مهامي» أو «طلباتي»، أو حدد نوع الطلب وتاريخه ورقمه عند الاعتماد أو تحديث الحالة.');
+    if(intent.action==='list_audit') {
+      if(actor.role==='employee') return reject();
+      const entries=await store.auditEntries(actor.id);
+      const labels={create_task:'إنشاء مهمة',update_task:'تحديث مهمة',create_request:'تقديم طلب أو تسجيل عودة',decide_request:'قرار اعتماد أو رفض',submit_report:'إرفاق تقرير طبي',list_tasks:'عرض المهام',list_requests:'عرض الطلبات',list_approvals:'عرض الاعتمادات',list_reports:'متابعة التقارير',list_audit:'عرض سجل العمليات',reject:'رفض تنفيذ',clarify:'طلب توضيح',policy_answer:'عرض السياسة',telegram_identity:'اختيار الحساب',telegram_link:'ربط الحساب'};
+      const format=new Intl.DateTimeFormat('ar-SA',{timeZone:'Asia/Riyadh',dateStyle:'short',timeStyle:'short',calendar:'gregory'});
+      return finish({action:'list_audit',entries,reply:entries.length?'آخر عمليات '+(actor.role==='manager'?'الشركة':'قسمك')+':\n'+entries.map(e=>`${format.format(new Date(e.created_at))} — ${e.actor_name||'النظام'} — ${labels[e.action]||'عملية مسجلة'}${e.details.task_id?` — المهمة #${e.details.task_id}`:''}${e.details.request_id?` — الطلب #${e.details.request_id}`:''}`).join('\n'):'لا توجد عمليات في النطاق المسموح.'});
+    }
     if (intent.action === 'policy_question') {
       const ids = [...new Set(intent.policy_ids)];
       return finish({ action:'policy_answer', policy_ids: intent.policy_supported ? ids : [],

@@ -201,3 +201,18 @@ test('medical report accepts attachment and return date without a prior record o
   assert.equal((await pool.query('SELECT * FROM employee_requests')).rows.length,1);
  }finally{await close();}
 });
+
+test('manager audit view includes all operations and supervisor view includes only their department',async()=>{
+ const {store,close}=await setup();
+ try {
+  const project=await store.create(1,4,'مهمة مشاريع','2026-10-15T10:00:00+03:00');
+  const finance=await store.create(1,5,'مهمة مالية','2026-10-15T10:00:00+03:00');
+  await store.audit(2,'policy_answer',{});await store.audit(6,'policy_answer',{});
+  assert.equal((await store.auditEntries(1)).length,4);
+  const projects=await store.auditEntries(2);assert.ok(projects.some(e=>e.details.task_id===project.id));assert.ok(!projects.some(e=>e.details.task_id===finance.id||e.actor_id===6));
+  const finances=await store.auditEntries(6);assert.ok(finances.some(e=>e.details.task_id===finance.id));assert.ok(!finances.some(e=>e.details.task_id===project.id||e.actor_id===2));
+  await assert.rejects(store.auditEntries(4),/FORBIDDEN/);
+  const chat=createChat({store,ai:async()=>assert.fail('audit button uses shared command')});
+  const denied=await chat({user_id:4,message:'سجل العمليات'});assert.equal(denied.action_type,'rejection');assert.equal(denied.entries,undefined);
+ }finally{await close();}
+});

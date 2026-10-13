@@ -119,6 +119,20 @@ export class Store {
     } catch (error) { if (!this.transactional) await client.query('ROLLBACK'); throw error; }
     finally { if (!this.transactional) client.release(); }
   }
+  async auditEntries(actorId) {
+    const actor=await this.user(actorId);
+    if(!actor||actor.role==='employee') throw new Error('FORBIDDEN');
+    const select=`SELECT a.*,e.name AS actor_name FROM audit_log a
+      LEFT JOIN employees e ON e.id=a.actor_id`;
+    if(actor.role==='manager') return (await this.pool.query(select+' ORDER BY a.id DESC LIMIT 100')).rows;
+    return (await this.pool.query(select+`
+      LEFT JOIN tasks t ON t.id::text=a.details->>'task_id'
+      LEFT JOIN employees te ON te.id=t.assignee_id
+      LEFT JOIN employee_requests r ON r.id::text=a.details->>'request_id'
+      LEFT JOIN employees re ON re.id=r.employee_id
+      WHERE e.department=$1 OR te.department=$1 OR re.department=$1
+      ORDER BY a.id DESC LIMIT 100`,[actor.department])).rows;
+  }
   async consumeNotifications(actorId) {
     const rows=(await this.pool.query(`SELECT n.id,n.task_id,e.name AS actor_name,e.role AS actor_role,t.description
       FROM task_notifications n JOIN employees e ON e.id=n.actor_id JOIN tasks t ON t.id=n.task_id
