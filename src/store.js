@@ -52,6 +52,10 @@ export async function initialize(pool) {
   await pool.query('ALTER TABLE employee_requests ADD COLUMN IF NOT EXISTS monitor_id INTEGER REFERENCES employees(id)');
   await pool.query('CREATE INDEX IF NOT EXISTS requests_approver_status ON employee_requests (approver_id,status)');
   await pool.query('CREATE INDEX IF NOT EXISTS requests_employee_date ON employee_requests (employee_id,request_date)');
+  await pool.query(`CREATE TABLE IF NOT EXISTS telegram_conversations (
+    telegram_id BIGINT PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES employees(id),
+    messages JSONB NOT NULL DEFAULT '[]'
+  )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS telegram_updates (
     update_id BIGINT PRIMARY KEY, reply TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP

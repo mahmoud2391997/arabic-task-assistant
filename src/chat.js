@@ -3,15 +3,30 @@ import { normalize, policy, schedule } from './language.js';
 import { canAccess } from './store.js';
 import { validateIntent } from './ai.js';
 
+function commandIntent(message) {
+  const text=normalize(message).replace(/ة/g,'ه').trim();
+  const base={target:'self',assignee_name:'',description:'',date_kind:'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]};
+  const commands={
+    'مهامي':{action:'list_tasks'},'كل المهام':{action:'list_tasks',target:'company'},
+    'مهام القسم':{action:'list_tasks',target:'department'},'طلباتي':{action:'list_requests'},
+    'طلبات للاعتماد':{action:'list_approvals'},'متابعه التقارير':{action:'list_reports'},
+    'سياسه الشركه':{action:'policy_question',policy_supported:true,policy_ids:[1,2,3,4,5,6]},
+  };
+  if(commands[text]) return {...base,...commands[text]};
+  const decision=text.match(/^(اعتمد|ارفض) الطلب (?:رقم )?([1-9][0-9]*)$/);
+  if(decision) return {...base,action:'decide_request',record_id:Number(decision[2]),status:decision[1]==='اعتمد'?'approved':'rejected'};
+  const report=text.match(/^(?:تقرير الطلب|\/report) ([1-9][0-9]*)$/);
+  if(report) return {...base,action:'submit_report',record_id:Number(report[1])};
+}
 const dateTokens = { today:'اليوم', tomorrow:'بكرة', day_after_tomorrow:'بعد بكرة' };
 const weekdays = ['الاحد','الاثنين','الثلاثاء','الاربعاء','الخميس','الجمعة','السبت'];
 export function createChat({ store, ai, clock = () => new Date() }) {
-  return async ({ user_id, message, document }) => {
+  return async ({ user_id, message, document, history=[] }) => {
     const actor = await store.user(user_id);
     if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
     const users = await store.users();
     const now = clock();
-    const intent = validateIntent(await ai({ message, users, now }));
+    const intent = validateIntent(commandIntent(message) || await ai({ message, users, now, history }));
     const finish = async result => {
       await store.audit(actor.id, result.action, { reason: result.action === 'reject' ? 'permission_denied' : undefined });
       return result;

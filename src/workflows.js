@@ -36,7 +36,7 @@ function publicRequest(row,now) {
   return result;
 }
 function describe(row) {
-  return `#${row.id} ${names[row.request_type]}${row.employee_name?` — ${row.employee_name}`:''} — ${statuses[row.status]}${row.request_date ? ` — ${row.request_date}` : ''}${row.amount ? ` — ${row.amount} ريال` : ''}${row.approver_id ? ` — المعتمد ${row.approver_name||`رقم ${row.approver_id}`}` : ''}${row.report_deadline ? ` — مهلة التقرير ${row.report_deadline}` : ''}`;
+  return `#${row.id} ${names[row.request_type]}${row.employee_name?` — ${row.employee_name}`:''} — ${statuses[row.status]}${row.request_date ? ` — ${row.request_type==='sick_leave'?'العودة ':''}${row.request_date}` : ''}${row.amount ? ` — ${row.amount} ريال` : ''}${row.approver_id ? ` — المعتمد ${row.approver_name||`رقم ${row.approver_id}`}` : ''}${row.report_deadline ? ` — مهلة التقرير ${row.report_deadline}` : ''}`;
 }
 export async function executeWorkflow({store,userId,intent,now,document}) {
   return transaction(store,async client=>{

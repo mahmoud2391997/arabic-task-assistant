@@ -156,7 +156,18 @@ test('supervisor medical monitoring is separate from approvals and scoped to ass
   assert.match(reports.reply,/خالد/);assert.match(reports.reply,/متأخر/);
   assert.equal((await run(2,{action:'list_approvals'})).requests.length,0);
   assert.equal((await run(6,{action:'list_reports'})).requests.length,0);
-  await assert.rejects(run(4,{action:'list_reports'}),/المشرف/);
+  await assert.rejects(run(4,{action:'list_reports'}),/للمشرف/);
   await assert.rejects(run(2,{action:'decide_request',record_id:sick.request.id,status:'approved'}),/صلاحية/);
+ } finally {await close();}
+});
+
+test('direct menu commands keep SQL permissions without accepting claimed authority',async()=>{
+ const {store,close}=await setup();
+ try {
+  const chat=createChat({store,clock:()=>now,ai:async()=>assert.fail('Menu commands should not call provider')});
+  assert.equal((await chat({user_id:4,message:'طلبات للاعتماد'})).requests.length,0);
+  assert.equal((await chat({user_id:4,message:'متابعة التقارير'})).action,'reject');
+  assert.equal((await chat({user_id:4,message:'كل المهام'})).action,'reject');
+  assert.equal((await chat({user_id:4,message:'سياسة الشركة'})).policy_ids.length,6);
  } finally {await close();}
 });

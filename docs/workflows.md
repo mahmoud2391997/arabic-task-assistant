@@ -1,5 +1,7 @@
 # Employee requests and status updates
 
+Telegram introduces the available capabilities in a role-specific message. Users write naturally; no exact command or keyboard button is required. Expense approvals share the pending approval inbox with a clear type and amount. Telegram retains the last three exchanges for follow-up references and clears them when the employee identity changes.
+
 All commands use the existing authenticated `POST /chat` API or the Telegram private chat. Roles, ownership, routing, business dates and decisions are enforced in SQL-backed application code. Model output cannot grant approval.
 
 | Operation | Example message |

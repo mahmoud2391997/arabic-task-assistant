@@ -111,3 +111,19 @@ test('Telegram request retries commit a single request and audit',{skip:!process
   assert.equal((await pool.query("SELECT * FROM audit_log WHERE action='create_request'")).rows.length,1);
  } finally {await pool.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
 });
+
+test('conversation follow-ups are retained only for the selected employee and reset on identity change',async()=>{
+ const Pool=newDb().adapters.createPg().Pool;const pool=new Pool();await initialize(pool);const seen=[];
+ try {
+  const telegram=createTelegram({pool,token:'123:test',secret,username:'example_bot',identityMode:'demo_id',
+    ai:async({history})=>{seen.push(history);return {...base,action:'clarify'};},
+    fetchImpl:async()=>({ok:true,json:async()=>({ok:true})})});
+  await telegram.receive(message(200,'4'));
+  await telegram.receive(message(201,'معلومات ناقصة'));
+  await telegram.receive(message(202,'الرد المكمل'));
+  assert.equal(seen[0].length,0);assert.equal(seen[1][0].content,'معلومات ناقصة');
+  await telegram.receive(message(203,'5'));
+  await telegram.receive(message(204,'بداية حساب آخر'));
+  assert.equal(seen[2].length,0);
+ } finally {await pool.end();}
+});
