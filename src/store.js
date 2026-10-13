@@ -24,6 +24,21 @@ export async function initialize(pool) {
     await pool.query('INSERT INTO employees (id,name,department,role) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING', row);
   }
   await pool.query('CREATE INDEX IF NOT EXISTS tasks_assignee_due ON tasks (assignee_id, due_at)');
+  await pool.query(`CREATE TABLE IF NOT EXISTS telegram_bindings (
+    telegram_id BIGINT PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES employees(id),
+    identity_mode TEXT NOT NULL DEFAULT 'secure_link',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await pool.query("ALTER TABLE telegram_bindings ADD COLUMN IF NOT EXISTS identity_mode TEXT NOT NULL DEFAULT 'secure_link'");
+  await pool.query('ALTER TABLE telegram_bindings DROP CONSTRAINT IF EXISTS telegram_bindings_employee_id_key');
+  await pool.query(`CREATE TABLE IF NOT EXISTS telegram_link_codes (
+    code_hash TEXT PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES employees(id),
+    expires_at TIMESTAMPTZ NOT NULL
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS telegram_updates (
+    update_id BIGINT PRIMARY KEY, reply TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
 }
 
 export function canAccess(actor, target) {
@@ -32,7 +47,7 @@ export function canAccess(actor, target) {
 }
 
 export class Store {
-  constructor(pool) { this.pool = pool; }
+  constructor(pool, transactional = false) { this.pool = pool; this.transactional = transactional; }
   async user(id) {
     return (await this.pool.query('SELECT * FROM employees WHERE id=$1', [id])).rows[0];
   }
@@ -42,9 +57,9 @@ export class Store {
   }
   // Re-read identities inside the repository: callers cannot supply a forged role.
   async create(actorId, targetId, description, dueAt) {
-    const client = await this.pool.connect();
+    const client = this.transactional ? this.pool : await this.pool.connect();
     try {
-      await client.query('BEGIN');
+      if (!this.transactional) await client.query('BEGIN');
       const actor = (await client.query('SELECT * FROM employees WHERE id=$1 FOR SHARE', [actorId])).rows[0];
       const target = (await client.query('SELECT * FROM employees WHERE id=$1 FOR SHARE', [targetId])).rows[0];
       if (!actor || !target || !canAccess(actor, target)) throw new Error('FORBIDDEN');
@@ -52,10 +67,10 @@ export class Store {
         VALUES ($1,$2,$3,$4) RETURNING *`, [target.id, actor.id, description, dueAt])).rows[0];
       await client.query('INSERT INTO audit_log (actor_id,action,details) VALUES ($1,$2,$3)',
         [actor.id, 'create_task', JSON.stringify({ task_id: task.id, assignee_id: target.id })]);
-      await client.query('COMMIT');
+      if (!this.transactional) await client.query('COMMIT');
       return task;
-    } catch (error) { await client.query('ROLLBACK'); throw error; }
-    finally { client.release(); }
+    } catch (error) { if (!this.transactional) await client.query('ROLLBACK'); throw error; }
+    finally { if (!this.transactional) client.release(); }
   }
   async list(actorId, targetId, all = false, departmentOnly = false) {
     const actor = await this.user(actorId);

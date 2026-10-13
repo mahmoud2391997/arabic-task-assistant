@@ -13,7 +13,7 @@ function tokenIdentity(req, tokens) {
     if (a.length === b.length && timingSafeEqual(a,b)) return Number(id);
   }
 }
-export function createHandler({ chat, authMode = 'demo', tokens = {}, health = async () => true }) {
+export function createHandler({ chat, authMode = 'demo', tokens = {}, health = async () => true, telegram }) {
   if (!['demo','token'].includes(authMode)) throw new Error('AUTH_MODE must be demo or token');
   if (authMode === 'token' && (!Object.keys(tokens).length || Object.entries(tokens).some(([id,t]) => !/^\d+$/.test(id) || typeof t !== 'string' || t.length < 32) || new Set(Object.values(tokens)).size !== Object.keys(tokens).length)) throw new Error('Provide unique tokens of at least 32 characters mapped to employee IDs');
   return async (req,res) => {
@@ -23,10 +23,12 @@ export function createHandler({ chat, authMode = 'demo', tokens = {}, health = a
       if (req.method === 'GET' && pathname === '/health') {
         await health(); return send(res,200,{ status:'ok' });
       }
-      if (pathname !== '/chat') return send(res,404,{error:'Not found'});
+      if (!['/chat','/telegram/webhook','/telegram/link-code'].includes(pathname)) return send(res,404,{error:'Not found'});
       if (req.method !== 'POST') { res.setHeader('Allow','POST'); return send(res,405,{error:'Method not allowed'}); }
+      const webhook = pathname === '/telegram/webhook';
+      if (webhook && (!telegram || !telegram.authorize(req.headers['x-telegram-bot-api-secret-token']))) return send(res,401,{error:'Invalid webhook authentication'});
       const identity = authMode === 'token' ? tokenIdentity(req,tokens) : undefined;
-      if (authMode === 'token' && !identity) return send(res,401,{error:'Invalid authentication'});
+      if (!webhook && authMode === 'token' && !identity) return send(res,401,{error:'Invalid authentication'});
       if (!req.headers['content-type']?.toLowerCase().startsWith('application/json')) return send(res,415,{error:'Use application/json'});
       let body;
       try {
@@ -45,6 +47,12 @@ export function createHandler({ chat, authMode = 'demo', tokens = {}, health = a
           body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
         }
       } catch { return send(res,400,{error:'Invalid JSON'}); }
+      if (webhook) { await telegram.receive(body); return send(res,200,{ok:true}); }
+      if (pathname === '/telegram/link-code') {
+        if (!telegram) return send(res,503,{error:'Telegram is not configured'});
+        if (!identity) return send(res,401,{error:'Employee authentication required'});
+        return send(res,200,await telegram.linkCode(identity));
+      }
       if (!body || !Number.isSafeInteger(body.user_id) || body.user_id < 1 || typeof body.message !== 'string' || !body.message.trim() || body.message.length > 4000) return send(res,400,{error:'Provide a positive integer user_id and message (1–4000 characters)'});
       if (identity && identity !== body.user_id) return send(res,403,{error:'user_id must match authenticated employee'});
       const result = await chat(body);

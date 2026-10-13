@@ -5,6 +5,7 @@ import { Store } from './store.js';
 import { createAI } from './ai.js';
 import { createChat } from './chat.js';
 import { createHandler } from './http.js';
+import { createTelegram } from './telegram.js';
 
 export function databaseConfig(env = process.env) {
   if (!env.DATABASE_URL) throw new Error('Set DATABASE_URL');
@@ -28,9 +29,10 @@ export function createRuntime(env = process.env) {
   if (env.VERCEL) attachDatabasePool(pool);
   pool.on('error', () => console.error('Idle database connection failed'));
   try {
+    const telegram = env.TELEGRAM_BOT_TOKEN ? createTelegram({pool,ai,token:env.TELEGRAM_BOT_TOKEN,secret:env.TELEGRAM_WEBHOOK_SECRET,username:env.TELEGRAM_BOT_USERNAME,identityMode:env.TELEGRAM_IDENTITY_MODE}) : undefined;
     const handler = createHandler({chat:createChat({store:new Store(pool),ai}),
       authMode:env.AUTH_MODE || 'demo', tokens:JSON.parse(env.AUTH_TOKENS_JSON || '{}'),
-      health:() => pool.query('SELECT 1 FROM employees LIMIT 1')});
+      telegram, health:() => pool.query('SELECT 1 FROM employees LIMIT 1')});
     return {pool,handler};
   } catch (error) { void pool.end(); throw error; }
 }
