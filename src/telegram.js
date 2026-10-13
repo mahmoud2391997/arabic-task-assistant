@@ -9,6 +9,7 @@ const welcome='أهلاً بك في مساعد المهام! 👋 أرسل رق�
 const actions=[
  ['mine','مهامي','مهامي'],['create','إنشاء مهمة','أريد إنشاء مهمة'],
  ['requests','طلباتي','طلباتي'],['new','طلب جديد','أريد تقديم طلب'],
+ ['sick','تسجيل العودة من المرضية','أريد تسجيل العودة من الإجازة المرضية'],
  ['update','تحديث حالة مهمة','أريد تحديث حالة مهمة'],['report','إرفاق تقرير طبي','أريد إرفاق تقرير طبي'],
  ['policy','سياسة الشركة','سياسة الشركة'],
  ['department','مهام القسم','مهام القسم',['supervisor']],
@@ -55,7 +56,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   return {reply:introduction(user),action_type:'execution',menu:keyboard(user,revision)};
  }
  async function process(client,m,callback) {
-  const id=m.from.id;let selectedAction;let text=(m.text||m.caption||'').trim();const s=await session(client,id);
+  const id=m.from.id;let selectedAction,selectedRequestType;let text=(m.text||m.caption||'').trim();const s=await session(client,id);
   const start=text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?$/);
   if(start?.[1]) {
    const code=start[1];if(!/^[A-Za-z0-9_-]{32}$/.test(code)) return {reply:'رابط الربط غير صالح أو انتهت صلاحيته.'};
@@ -78,7 +79,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
    const actor=s.active_user_id ? await new Store(client,true).user(s.active_user_id) : null;
    const selected=actions.find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
    if(s.awaiting_id||!actor||revision!==s.revision||!selected) return {reply:'هذا الزر قديم أو غير متاح لحسابك. أرسل رقم الموظف أو ابدأ المحادثة مجدداً.'};
-   text=selected[2];selectedAction={create:'create_task',new:'create_request',update:'update_task',report:'submit_report',decision:'decide_request'}[key];
+   text=selected[2];selectedAction={create:'create_task',new:'create_request',sick:'create_request',update:'update_task',report:'submit_report',decision:'decide_request'}[key];selectedRequestType=key==='sick'?'sick_leave':undefined;
   }
   if(!s.active_user_id||s.awaiting_id) {
    // Public policy remains available without disclosing employees or tasks.
@@ -93,7 +94,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   const previous=(await client.query('SELECT messages FROM telegram_conversations WHERE telegram_id=$1 AND employee_id=$2',[id,s.active_user_id])).rows[0]?.messages||[];
   const history=Array.isArray(previous)?previous.slice(-6):[];
   const document=m.document||(m.photo?.length?{file_id:m.photo.at(-1).file_id,file_size:m.photo.at(-1).file_size,mime_type:'image/jpeg'}:undefined);
-  const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction});
+  const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType});
   const messages=[...history,{role:'user',content:text.slice(0,1200)},{role:'assistant',content:result.message.slice(0,1200)}].slice(-6);
   await client.query('INSERT INTO telegram_conversations (telegram_id,employee_id,messages) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,messages=EXCLUDED.messages',[id,s.active_user_id,JSON.stringify(messages)]);
   await client.query('UPDATE telegram_sessions SET current_action=$1,expires_at=$2 WHERE telegram_id=$3',[result.action_type==='inquiry'?result.action:null,new Date(clock().getTime()+86400000),id]);

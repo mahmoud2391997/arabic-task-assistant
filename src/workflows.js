@@ -52,15 +52,15 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
       await audit(client,actor.id,intent.action,{count:rows.length});
       return {action:intent.action,requests:rows,reply:rows.length ? (reports?'متابعة التقارير الطبية:\n':approvals?'طلبات بانتظار اعتمادك:\n':'طلباتك:\n')+rows.map(describe).join('\n') : (reports?'لا توجد تقارير طبية لمتابعتها في قسمك.':approvals?'لا توجد طلبات بانتظار اعتمادك.':'لا توجد طلبات لك.')};
     }
-    if (['decide_request','submit_report','update_task'].includes(intent.action) && !Number.isSafeInteger(intent.record_id)) throw new WorkflowError('حدد رقم الطلب أو المهمة.');
+    if (['decide_request','submit_report','update_task'].includes(intent.action) && !Number.isSafeInteger(intent.record_id)) throw new WorkflowError(intent.action==='submit_report'?'حدد رقم سجل العودة من الإجازة المرضية لإرفاق التقرير به. هذا ليس طلب موافقة أو رقم مهمة.':intent.action==='update_task'?'حدد رقم المهمة المطلوب تحديثها.':'حدد رقم طلب الاعتماد.');
     if(intent.action==='create_request') {
       if (intent.target !== 'self') throw new WorkflowError('طلبات الإجازة والعمل عن بعد والمصروفات تُقدّم لحسابك فقط.',false,true);
       const type=intent.request_type;
-      if(!Object.hasOwn(names,type)) throw new WorkflowError('حدد نوع الطلب: إجازة اعتيادية، مرضية، عمل عن بعد، أو مصروفات.');
+      if(!Object.hasOwn(names,type)) throw new WorkflowError('حدد نوع الطلب: إجازة اعتيادية، عمل عن بُعد، أو مصروفات. المرضية لا تحتاج إذناً مسبقاً؛ سجّل تاريخ العودة منها ثم أرفق التقرير الطبي خلال يومين من العودة.');
       await employee(client,actor.id,'FOR UPDATE');
       const today=riyadhToday(now);
       const date=type==='expense' ? null : dateFromIntent(intent,now,{allowPast:type==='sick_leave'});
-      if(type!=='expense'&&!date) throw new WorkflowError(type==='sick_leave' ? 'حدد تاريخ العودة من الإجازة المرضية لحساب مهلة التقرير، بصيغة YYYY-MM-DD.' : 'حدد تاريخ الطلب بصيغة YYYY-MM-DD أو يوم واضح.');
+      if(type!=='expense'&&!date) throw new WorkflowError(type==='sick_leave' ? 'المرضية لا تحتاج إذناً مسبقاً. حدد تاريخ العودة منها؛ التقرير الطبي مطلوب خلال يومين من العودة.' : 'حدد تاريخ الطلب بصيغة YYYY-MM-DD أو يوم واضح.');
       if(type==='annual_leave'&&businessDaysBetween(today,date)<5) throw new WorkflowError('طلب الإجازة الاعتيادية يجب تقديمه قبل 5 أيام عمل على الأقل. لم يُرسل الطلب للمشرف.',false,true);
       if(type==='remote_work') {
         if(intent.duration_days && intent.duration_days!==1) throw new WorkflowError('العمل عن بُعد مسموح يوم واحد في الأسبوع بموافقة المشرف.',false,true);
@@ -80,7 +80,7 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
       await audit(client,actor.id,'create_request',{request_id:row.id,type,approver_id:reviewer?.id??null,monitor_id:monitor?.id??null});
       const request=publicRequest(row,now);
       return {action:'create_request',request,reply:type==='sick_leave'
-        ? `تم تسجيل الإجازة المرضية #${row.id}. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق مستند التقرير مع تعليق «تقرير الطلب ${row.id}».${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
+        ? `تم تسجيل العودة من الإجازة المرضية #${row.id}، بدون طلب موافقة مسبقة. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق مستند التقرير مع تعليق «تقرير الطلب ${row.id}».${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
         : `تم تقديم طلب ${names[type]} #${row.id} إلى صندوق طلبات ${reviewer.name}. الطلب بانتظار موافقته، ولم يُعتمد بعد.`};
     }
     if(intent.action==='decide_request') {

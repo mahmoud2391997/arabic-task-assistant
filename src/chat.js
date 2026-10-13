@@ -22,12 +22,12 @@ function commandIntent(message) {
 const dateTokens = { today:'اليوم', tomorrow:'بكرة', day_after_tomorrow:'بعد بكرة' };
 const weekdays = ['الاحد','الاثنين','الثلاثاء','الاربعاء','الخميس','الجمعة','السبت'];
 export function createChat({ store, ai, clock = () => new Date() }) {
-  const execute = async ({ user_id, message, document, history=[], selectedAction }) => {
+  const execute = async ({ user_id, message, document, history=[], selectedAction, selectedRequestType }) => {
     const actor = await store.user(user_id);
     if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
     const users = await store.users();
     const now = clock();
-    const intent = validateIntent(selectedAction ? {action:selectedAction,target:'self',assignee_name:'',description:'',date_kind:'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]} : commandIntent(message) || await ai({ message, users, now, history }));
+    const intent = validateIntent(selectedAction ? {action:selectedAction,request_type:selectedRequestType||'',target:'self',assignee_name:'',description:'',date_kind:'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]} : commandIntent(message) || await ai({ message, users, now, history }));
     const finish = async result => {
       result.request_action=intent.action==='clarify' ? 'unknown' : intent.action==='policy_question' ? 'policy_answer' : intent.action;
       await store.audit(actor.id, result.action, { reason: result.action === 'reject' ? 'permission_denied' : undefined });
