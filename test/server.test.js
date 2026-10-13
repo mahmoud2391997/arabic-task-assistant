@@ -78,7 +78,7 @@ test('Groq adapter sends JSON mode and validates output; provider failures fail 
   }});
   assert.equal((await ai({message:scenarios[0].message,users:[],now})).action,'create_task');
   assert.equal(captured.url,'https://api.groq.com/openai/v1/chat/completions');
-  assert.equal(JSON.parse(captured.request.body).response_format.type,'json_object');
+  assert.equal(JSON.parse(captured.request.body).response_format.type,'json_schema');
   for (const response of [ {ok:false,status:429}, {ok:true,json:async()=>({choices:[{message:{content:'not json'}}]})}, {ok:true,json:async()=>({choices:[{message:{content:'{"action":"drop_database"}'}}]})} ]) {
     await assert.rejects(createAI({...options,fetchImpl:async()=>response})({message:'hi',users:[],now}),AIError);
   }
@@ -155,4 +155,17 @@ test('all six policy answers use the exact source clauses, and unsupported quest
     const result=await chat({user_id:3,message:'unknown'});
     assert.deepEqual(result.policy_ids,[]);assert.match(result.reply,/غير متوفرة/);
   } finally {await pool.end();}
+});
+
+test('chat exposes four response categories and classifies unknown policy as clarification',async()=>{
+ const {pool,store}=await setup();
+ try {
+  const call=(user_id,intent)=>createChat({store,clock:()=>now,ai:async()=>({...base,...intent})})({user_id,message:'test classification'});
+  assert.equal((await call(3,{action:'list_tasks'})).response_type,'execution');
+  assert.equal((await call(3,{action:'create_task',target:'person',assignee_name:'خالد',description:'blocked'})).response_type,'rejection');
+  const shifted=await call(3,{action:'create_task',description:'Friday example',date_kind:'weekday',date_value:'الجمعة',time:'09:00'});
+  assert.equal(shifted.response_type,'execution_rescheduled');assert.equal(shifted.rescheduled,true);
+  assert.equal((await call(3,{action:'create_task',description:'missing date'})).response_type,'clarification');
+  assert.equal((await call(3,{action:'policy_question',policy_supported:false})).response_type,'clarification');
+ } finally {await pool.end();}
 });

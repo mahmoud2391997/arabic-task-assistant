@@ -1,3 +1,4 @@
+import {classifyResponse} from './responses.js';
 import {executeWorkflow,WorkflowError} from './workflows.js';
 import { normalize, policy, schedule } from './language.js';
 import { canAccess } from './store.js';
@@ -21,7 +22,7 @@ function commandIntent(message) {
 const dateTokens = { today:'اليوم', tomorrow:'بكرة', day_after_tomorrow:'بعد بكرة' };
 const weekdays = ['الاحد','الاثنين','الثلاثاء','الاربعاء','الخميس','الجمعة','السبت'];
 export function createChat({ store, ai, clock = () => new Date() }) {
-  return async ({ user_id, message, document, history=[] }) => {
+  const execute = async ({ user_id, message, document, history=[] }) => {
     const actor = await store.user(user_id);
     if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
     const users = await store.users();
@@ -82,4 +83,5 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     return { action:'create_task', task_id:task.id, task, rescheduled:due.shifted,
       reply:`تم تسجيل المهمة لـ${target.name} بتاريخ ${due.date} الساعة ${due.time}.${due.shifted ? ' وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.' : ''}` };
   };
+  return async input => classifyResponse(await execute(input));
 }

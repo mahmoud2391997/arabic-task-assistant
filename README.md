@@ -23,7 +23,7 @@ AI_MODEL=qwen/qwen3.8-27b
 GROQ_API_KEY=your-key
 ```
 
-The adapter uses the [Groq-compatible endpoint](https://console.groq.com/docs/openai) and [JSON object mode](https://console.groq.com/docs/structured-outputs). JSON mode guarantees syntax rather than this application's schema, so the server separately validates each extracted field. You can change the base URL and model, using `AI_API_KEY` for another compatible provider; clear `GROQ_API_KEY` first because it takes precedence. No fallback provider or offline intent parser is silently used.
+The adapter uses the [Groq-compatible endpoint](https://console.groq.com/docs/openai) and [structured outputs](https://console.groq.com/docs/structured-outputs). Supported Groq models (including the configured Qwen model) use strict JSON Schema; other compatible models use JSON object mode. The server separately validates extracted fields in both modes. You can change the base URL and model, using `AI_API_KEY` for another compatible provider; clear `GROQ_API_KEY` first because it takes precedence. No fallback provider or offline intent parser is silently used.
 
 ## API
 
@@ -45,7 +45,7 @@ Response shape (IDs and dates depend on the database and current day):
 }
 ```
 
-Actions: `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `list_reports`, `decide_request`, `submit_report`, `update_task`, `clarify`, `reject`, `error`. Business clarification uses HTTP 200; permission denial 403; malformed input 400; missing authentication 401; provider errors 502. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds.
+Actions: `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `list_reports`, `decide_request`, `submit_report`, `update_task`, `clarify`, `reject`, `error`. Every chat result includes `response_type`: `execution`, `rejection`, `execution_rescheduled` or `clarification`. Unknown policy answers use clarification. Business clarification uses HTTP 200; permission denial 403; malformed input 400; missing authentication 401; provider errors 502. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds.
 
 ## Identity and permissions
 

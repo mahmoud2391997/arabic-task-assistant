@@ -25,6 +25,16 @@ export function validateIntent(value) {
   return result;
 }
 
+export const intentSchema={type:'object',additionalProperties:false,properties:{
+  action:{type:'string',enum:['create_task','list_tasks','policy_question','clarify','create_request','list_requests','list_approvals','list_reports','decide_request','submit_report','update_task']},
+  target:{type:'string',enum:['self','person','department','company']},assignee_name:{type:'string'},description:{type:'string'},
+  date_kind:{type:'string',enum:['today','tomorrow','day_after_tomorrow','weekday','absolute','unknown','calendar_days','business_days']},
+  date_value:{type:'string'},time:{type:'string'},policy_supported:{type:'boolean'},policy_ids:{type:'array',items:{type:'integer',enum:[1,2,3,4,5,6]}},
+  request_type:{type:'string',enum:['','annual_leave','sick_leave','remote_work','expense']},record_id:{type:['integer','null']},
+  status:{type:'string',enum:['','pending','in_progress','completed','approved','rejected']},amount:{type:['number','null']},currency:{type:'string',enum:['','SAR']},duration_days:{type:['integer','null']},
+}};
+intentSchema.required=Object.keys(intentSchema.properties);
+
 export function createAI({ baseURL, apiKey, model, timeoutMs = 20000, fetchImpl = fetch }) {
   if (!baseURL || !apiKey || !model) throw new Error('Set GROQ_API_KEY (or AI_API_KEY), AI_BASE_URL and AI_MODEL in .env');
   const url = new URL(`${baseURL.replace(/\/$/, '')}/chat/completions`);
@@ -64,7 +74,8 @@ Policy clauses: ${JSON.stringify(policy.map((text,i) => ({id:i+1,text})))}.`;
         method: 'POST', signal: AbortSignal.timeout(timeoutMs),
         headers: { 'Content-Type':'application/json', Authorization:`Bearer ${apiKey}` },
         body: JSON.stringify({ model, temperature:0, max_tokens:600,
-          response_format:{ type:'json_object' },
+          response_format:url.hostname==='api.groq.com' && ['qwen/qwen3.8-27b','openai/gpt-oss-20b','openai/gpt-oss-120b'].includes(model)
+            ? {type:'json_schema',json_schema:{name:'employee_intent',strict:true,schema:intentSchema}} : {type:'json_object'},
           messages:[{ role:'system', content:system },...history.filter(m=>['user','assistant'].includes(m?.role)&&typeof m.content==='string').slice(-6).map(m=>({role:m.role,content:m.content.slice(0,1200)})),{ role:'user', content:message }] }),
       });
       if (!response.ok) throw new AIError(`AI provider returned HTTP ${response.status}`);

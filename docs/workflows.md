@@ -40,3 +40,5 @@ TELEGRAM_TEST_DATABASE_URL=postgresql://assistant:assistant@localhost:5433/assis
 ```
 
 These integration tests use isolated temporary schemas. Keep the separate `TEST_DATABASE_URL` option pointed only at a disposable database; the legacy task tests recreate tables when that option is set. Docker startup remains `docker compose up --build` after creating the ignored `.env` file.
+
+Telegram asks for the employee ID first, rejects an unknown ID, and introduces the recognized employee by name with their available capabilities. Thereafter replies are labeled execution, rejection, execution with rescheduling, or clarification/apology. Missing input and information absent from policy use clarification. The chat API exposes the same categories in `response_type` while preserving its action identifiers.

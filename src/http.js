@@ -59,12 +59,12 @@ export function createHandler({ chat, authMode = 'demo', tokens = {}, health = a
       const result = await chat({user_id:body.user_id,message:body.message});
       send(res,result.action === 'reject' ? 403 : 200,result);
     } catch (error) {
-      if (error instanceof AIError) return send(res,502,{action:'error', reply:'تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'});
-      if (error.message === 'OUTSIDE_WORKING_HOURS') return send(res,400,{action:'clarify',reply:'الموعد خارج ساعات الدوام. حدد وقتاً خلال الدوام.'});
-      if (error.message === 'FORBIDDEN') return send(res,403,{action:'reject',reply:'لا تملك صلاحية تنفيذ هذا الطلب.'});
+      if (error instanceof AIError) return send(res,502,{action:'error',response_type:'clarification', reply:'تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'});
+      if (error.message === 'OUTSIDE_WORKING_HOURS') return send(res,400,{action:'clarify',response_type:'clarification',reply:'الموعد خارج ساعات الدوام. حدد وقتاً خلال الدوام.'});
+      if (error.message === 'FORBIDDEN') return send(res,403,{action:'reject',response_type:'rejection',reply:'لا تملك صلاحية تنفيذ هذا الطلب.'});
       // Do not log tokens, raw messages, connection strings, or provider error bodies.
       console.error('Request failed:', error.name);
-      send(res,500,{action:'error',reply:'تعذر تنفيذ الطلب.'});
+      send(res,500,{action:'error',response_type:'clarification',reply:'تعذر تنفيذ الطلب.'});
     }
   };
 }

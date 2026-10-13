@@ -60,6 +60,7 @@ export async function initialize(pool) {
     update_id BIGINT PRIMARY KEY, reply TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await pool.query("ALTER TABLE telegram_updates ADD COLUMN IF NOT EXISTS response_type TEXT NOT NULL DEFAULT 'clarification'");
 }
 
 export function canAccess(actor, target) {

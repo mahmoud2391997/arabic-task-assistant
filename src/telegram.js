@@ -1,3 +1,4 @@
+import {classifyResponse,presentReply} from './responses.js';
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { Store } from './store.js';
 import { createChat } from './chat.js';
@@ -6,10 +7,10 @@ import { validateIntent } from './ai.js';
 
 const hash = code => createHash('sha256').update(code).digest('hex');
 function roleIntroduction(user) {
-  const common='تقدر تقدم طلباتك وتسأل عن سياسة الشركة بكلامك الطبيعي.';
-  const role=user.role==='manager' ? 'تقدر تعرض مهامك وجميع مهام الشركة، وتراجع المصروفات الموجهة لك للاعتماد.'
-    : user.role==='supervisor' ? 'تقدر تعرض مهامك ومهام قسمك، وتراجع الطلبات الموجهة لك للموافقة، وتتابع وصول التقارير الطبية لقسمك.'
-    : 'تقدر تعرض مهامك وتحدث حالتها، وتتابع الطلبات اللي قدمتها.';
+  const common='تقدر تقدم إجازة اعتيادية أو مرضية أو عمل عن بعد أو مصروفات، وتتابع طلباتك، وتحدث حالة المهام ضمن صلاحياتك، وتسأل عن سياسة الشركة بكلامك الطبيعي.';
+  const role=user.role==='manager' ? 'تقدر تسجل وتعرض مهامك وجميع مهام الشركة، وتراجع المصروفات الموجهة لك للاعتماد.'
+    : user.role==='supervisor' ? 'تقدر تسجل وتعرض مهامك ومهام قسمك، وتراجع الطلبات الموجهة لك للموافقة، وتتابع وصول التقارير الطبية لقسمك.'
+    : 'تقدر تسجل وتعرض مهامك وتحدث حالتها، وتتابع الطلبات اللي قدمتها.';
   return `اتعرفت على حساب ${user.name}. ${role} ${common} اطلب اللي تحتاجه بصياغتك المعتادة؛ لو معلومة ناقصة هسألك عنها. اختيار رقم الموظف هنا للتجربة.`;
 }
 const onboarding = 'أهلاً! أنا مساعد المهام. تقدر تسأل عن سياسة الشركة. تسجيل وعرض المهام يحتاج ربط حساب موظف برابط آمن من مسؤول النظام.';
@@ -41,11 +42,11 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
       if (choice) {
         const employeeId=Number(choice[1]);
         const store=new Store(client,true);const user=await store.user(employeeId);
-        if (!user) return 'رقم الموظف غير موجود. ابعت رقم موظف صحيح.';
+        if (!user) return {reply:'رقم الموظف غير موجود. ابعت رقم موظف صحيح.',response_type:'rejection'};
         await client.query(`INSERT INTO telegram_bindings (telegram_id,employee_id,identity_mode) VALUES ($1,$2,'demo_id') ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,identity_mode='demo_id'`,[id,employeeId]);
         await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);
         await store.audit(employeeId,'telegram_demo_identity',{});
-        return roleIntroduction(user);
+        return {reply:roleIntroduction(user),response_type:'execution'};
       }
     }
     if (start?.[1]) {
@@ -60,7 +61,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
       await store.audit(row.employee_id,'telegram_link',{});
       const user = await store.user(row.employee_id);
       await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);
-      return roleIntroduction(user);
+      return {reply:roleIntroduction(user),response_type:'execution'};
     }
     if (start) return welcome(client);
     if (/^\/help(?:@[A-Za-z0-9_]+)?$/.test(text) || text==='مساعدة') return 'اكتب رقم الموظف لاختياره. «طلباتي» لطلباتك، و«طلبات للاعتماد» للطلبات الموجهة لك. أمثلة: قدّم طلب إجازة اعتيادية بعد 5 أيام عمل؛ قدّم طلب مصروفات 650 ريال؛ اعتمد الطلب رقم 12؛ حدث حالة المهمة رقم 4 إلى مكتملة. لرفع تقرير طبي، أرفق الملف مع تعليق «تقرير الطلب 12».';
@@ -74,14 +75,14 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
       const result = await createChat({store:new Store(client,true),ai})({user_id:binding.employee_id,message:text,document,history});
       const messages=[...history,{role:'user',content:text.slice(0,1200)},{role:'assistant',content:result.reply.slice(0,1200)}].slice(-6);
       await client.query('INSERT INTO telegram_conversations (telegram_id,employee_id,messages) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,messages=EXCLUDED.messages',[id,binding.employee_id,JSON.stringify(messages)]);
-      return result.reply;
+      return result;
     }
     if (demo) return welcome(client);
     // Guests can ask public policy questions, without receiving employee identities or tasks.
     const intent = validateIntent(await ai({message:text,users:[],now:new Date()}));
     if (intent.action !== 'policy_question') return welcome(client);
     const ids = [...new Set(intent.policy_ids)];
-    return intent.policy_supported && ids.length ? ids.map(id => policy[id-1]).join('\n') : 'هذه المعلومة غير متوفرة في نص سياسة الشركة.';
+    return classifyResponse({action:'policy_answer',policy_ids:intent.policy_supported?ids:[],reply:intent.policy_supported && ids.length ? ids.map(id => policy[id-1]).join('\n') : 'هذه المعلومة غير متوفرة في نص سياسة الشركة.'});
   }
   return {
     authorize(value) {
@@ -98,20 +99,21 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
     async receive(update) {
       const m=update?.message;
       if (!Number.isSafeInteger(update?.update_id) || update.update_id<0 || !m || m.chat?.type!=='private' || !Number.isSafeInteger(m.from?.id) || m.from.id<=0 || m.from.is_bot || m.chat.id!==m.from.id || typeof (m.text??m.caption)!=='string' || !(m.text??m.caption).trim() || (m.text??m.caption).length>4000) return;
-      const client=await pool.connect(); let reply;
+      const client=await pool.connect(); let reply,responseType;
       try {
         await client.query('BEGIN');
         const inserted=(await client.query('INSERT INTO telegram_updates (update_id) VALUES ($1) ON CONFLICT (update_id) DO NOTHING RETURNING update_id',[update.update_id])).rows.length;
         if (inserted) {
-          reply=await processUpdate(client,m);
-          await client.query('UPDATE telegram_updates SET reply=$1 WHERE update_id=$2',[reply,update.update_id]);
-        } else reply=(await client.query('SELECT reply FROM telegram_updates WHERE update_id=$1',[update.update_id])).rows[0]?.reply;
+          const result=await processUpdate(client,m);
+          reply=typeof result==='string'?result:result.reply;responseType=typeof result==='string'?'clarification':result.response_type;
+          await client.query('UPDATE telegram_updates SET reply=$1,response_type=$2 WHERE update_id=$3',[reply,responseType,update.update_id]);
+        } else {const row=(await client.query('SELECT reply,response_type FROM telegram_updates WHERE update_id=$1',[update.update_id])).rows[0];reply=row?.reply;responseType=row?.response_type;}
         await client.query('COMMIT');
       } catch(error) { await client.query('ROLLBACK'); throw error; }
       finally { client.release(); }
       // Persist task and reply together before delivery. Retried updates reuse the reply and cannot create another task.
       if (reply) {
-        const chars=Array.from(reply);
+        const chars=Array.from(presentReply(reply,responseType));
         for(let i=0;i<chars.length;i+=3500) await api('sendMessage',{chat_id:m.chat.id,text:chars.slice(i,i+3500).join(''),reply_markup:{remove_keyboard:true}});
       }
     },
