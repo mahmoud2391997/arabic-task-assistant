@@ -33,3 +33,5 @@ Policy answers quote the six source clauses. Leave applications, medical-report 
 Task assignments by a supervisor or manager create a persisted recipient notification in the same transaction as the task. It is shown once when the employee identifies their account or next interacts with the bot, with the assigning person’s name. Displaying the notification does not remove or modify the task. Telegram provides no bot event for merely opening a chat without interacting.
 
 API responses also include newly assigned task notifications through the same processor, in the message and a notifications array. A notification shown through API is no longer new in Telegram, and vice versa. Tasks remain available independently of their notification status.
+
+تسجيل الخروج clears the active account, pending action, binding and conversation history, and invalidates old buttons. Verified account grants remain available for future identification. Medical reports require a recorded return before upload.

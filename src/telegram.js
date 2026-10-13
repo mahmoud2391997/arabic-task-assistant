@@ -11,7 +11,7 @@ const actions=[
  ['requests','طلباتي','طلباتي'],['new','طلب جديد','أريد تقديم طلب'],
  ['sick','تسجيل العودة من المرضية','عدت اليوم من الإجازة المرضية'],
  ['update','تحديث حالة مهمة','أريد تحديث حالة مهمة'],['report','إرفاق تقرير طبي','أريد إرفاق تقرير طبي'],
- ['policy','سياسة الشركة','سياسة الشركة'],
+ ['policy','سياسة الشركة','سياسة الشركة'],['logout','تسجيل الخروج','/logout'],
  ['department','مهام القسم','مهام القسم',['supervisor']],
  ['company','كل المهام','كل المهام',['manager']],
  ['audit','سجل العمليات','سجل العمليات',['supervisor','manager']],
@@ -59,6 +59,13 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   const notices=await new Store(client,true).consumeNotifications(userId);
   return {reply:notificationText(notices)+introduction(user),action_type:'execution',menu:keyboard(user,revision)};
  }
+ async function logout(client,id,s) {
+  await client.query('UPDATE telegram_sessions SET active_user_id=NULL,awaiting_id=true,current_action=NULL,revision=$1 WHERE telegram_id=$2',[randomBytes(8).toString('hex'),id]);
+  await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);
+  await client.query('DELETE FROM telegram_bindings WHERE telegram_id=$1',[id]);
+  if(s.active_user_id) await new Store(client,true).audit(s.active_user_id,'telegram_logout',{});
+  return {reply:'تم تسجيل الخروج. أرسل رقم الموظف للدخول مجدداً.',action_type:'execution'};
+ }
  async function process(client,m,callback) {
   const id=m.from.id;let selectedAction,selectedRequestType;let text=(m.text||m.caption||'').trim();const s=await session(client,id);
   const start=text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?$/);
@@ -73,6 +80,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
    await client.query("UPDATE telegram_sessions SET awaiting_id=true,current_action='identify',revision=$1,expires_at=$2 WHERE telegram_id=$3",[randomBytes(8).toString('hex'),new Date(clock().getTime()+86400000),id]);
    await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);return {reply:onboarding};
   }
+  if(/^(?:\/logout(?:@[A-Za-z0-9_]+)?|تسجيل الخروج|سجل خروج|log out|logout)$/i.test(text)) return logout(client,id,s);
   const choice=identityRequest(text,s.awaiting_id);if(choice!==undefined) return activate(client,id,choice,s);
   if(new Date(s.expires_at)<=clock()) {
    await client.query('UPDATE telegram_sessions SET active_user_id=NULL,awaiting_id=true,current_action=NULL,revision=$1 WHERE telegram_id=$2',[randomBytes(8).toString('hex'),id]);
@@ -83,6 +91,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
    const actor=s.active_user_id ? await new Store(client,true).user(s.active_user_id) : null;
    const selected=[...actions,...requestActions].find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
    if(s.awaiting_id||!actor||revision!==s.revision||!selected) return {reply:'هذا الزر قديم أو غير متاح لحسابك. أرسل رقم الموظف أو ابدأ المحادثة مجدداً.'};
+   if(key==='logout') return logout(client,id,s);
    text=selected[2];selectedAction={create:'create_task',new:'create_request',annual:'create_request',remote:'create_request',expense:'create_request',sick:'create_request',update:'update_task',report:'submit_report',decision:'decide_request'}[key];selectedRequestType={sick:'sick_leave',annual:'annual_leave',remote:'remote_work',expense:'expense'}[key];
   }
   if(!s.active_user_id||s.awaiting_id) {

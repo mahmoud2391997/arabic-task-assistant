@@ -186,14 +186,15 @@ test('task-update inquiry lists only tasks in the actor scope before asking for 
  }finally{await close();}
 });
 
-test('medical report accepts attachment and return date without a prior record or approval',async()=>{
+test('medical report requires a recorded return but no approval',async()=>{
  const {pool,run,close}=await setup();const document={file_id:'report-file',file_size:1024,mime_type:'application/pdf'};
  try {
-  await assert.rejects(run(5,{action:'submit_report'}),/أرفق التقرير/);
+  await assert.rejects(run(5,{action:'submit_report'}),/تسجيل العودة/);
   assert.equal((await pool.query('SELECT * FROM employee_requests')).rows.length,0);
+  await run(5,{action:'create_request',request_type:'sick_leave',date_kind:'absolute',date_value:'2026-10-13'});
   const data={action:'submit_report',date_kind:'absolute',date_value:'2026-10-13'};
   await assert.rejects(run(5,data),/أرفق التقرير/);
-  assert.equal((await pool.query('SELECT * FROM employee_requests')).rows.length,0);
+  assert.equal((await pool.query('SELECT * FROM employee_requests')).rows.length,1);
   const result=await run(5,data,now,document);
   assert.equal(result.request.employee_id,5);assert.equal(result.request.approver_id,null);assert.equal(result.request.monitor_id,6);
   assert.equal(result.request.report_deadline,'2026-10-15');assert.equal(result.request.status,'report_received');

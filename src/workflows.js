@@ -129,15 +129,9 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
         if(date&&rows.length>1) throw new WorkflowError('يوجد أكثر من سجل مرضي لنفس تاريخ العودة. تواصل مع المشرف لتحديد السجل الصحيح.');
         row=rows.length===1?rows[0]:undefined;
       }
+      if(!row?.request_date) throw new WorkflowError('يجب أولًا تسجيل العودة من الإجازة المرضية، ثم إرفاق التقرير الطبي.');
       if(!document) throw new WorkflowError('أرفق التقرير الطبي هنا. يجب إرفاقه خلال يومين كحد أقصى من العودة من الإجازة المرضية.');
       if(!document.file_id||typeof document.file_id!=='string'||document.file_id.length>1024||!['application/pdf','image/jpeg','image/png'].includes(document.mime_type)||!Number.isSafeInteger(document.file_size)||document.file_size<1||document.file_size>10*1024*1024) throw new WorkflowError('أرفق التقرير الطبي كملف PDF أو صورة JPEG/PNG لا تتجاوز 10 ميجابايت.');
-      if(!row) {
-        const date=dateFromIntent(intent,now,{allowPast:true});
-        const monitor=await approver(client,actor,'sick_leave',null);
-        row=(await client.query(`INSERT INTO employee_requests (employee_id,request_type,request_date,status,report_deadline,created_at,monitor_id)
-          VALUES ($1,'sick_leave',$2,'awaiting_report',$3,$4,$5) RETURNING *`,[actor.id,date,date?addCalendarDays(date,2):null,now,monitor.id])).rows[0];
-        await audit(client,actor.id,'create_request',{request_id:row.id,type:'sick_leave',monitor_id:monitor.id,source:'medical_report'});
-      }
       if(row.report_received_at) throw new WorkflowError('تم تسجيل وصول التقرير لهذا الطلب بالفعل.',false,true);
       const late=row.report_deadline?riyadhToday(now)>dateOnly(row.report_deadline):null;
       const updated=(await client.query('UPDATE employee_requests SET report_file_id=$1,report_received_at=$2,status=$3 WHERE id=$4 RETURNING *',[document.file_id,now,late?'report_received_late':'report_received',row.id])).rows[0];

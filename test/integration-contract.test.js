@@ -87,17 +87,17 @@ test('explicit demo mode accepts ID-only selection without creating verified gra
  }finally{await pool.end();}
 });
 
-test('medical upload button requests only a file and reminds of dates inside the report',async()=>{
+test('report button requires return first, then asks only for a file with the two-day reminder',async()=>{
  const f=await fixture(async()=>({...base,action:'submit_report'}));
  try {
-  const greeting=await f.grant(5);
-  assert.ok(greeting.reply_markup.inline_keyboard.flat().some(b=>b.text==='تسجيل العودة من المرضية'));
-  const button=greeting.reply_markup.inline_keyboard.flat().find(b=>b.text==='إرفاق تقرير طبي');
-  const prompt=await f.callback(1,button.callback_data);assert.match(prompt.text,/خلال يومين كحد أقصى/);assert.doesNotMatch(prompt.text,/حدد رقم|اذكر تاريخ|ما تاريخ/);
-  await f.telegram.receive({update_id:2,message:{from:{id:700,is_bot:false},chat:{id:700,type:'private'},document:{file_id:'medical-file',file_size:512,mime_type:'application/pdf'}}});
-  const receipt=f.sent.filter(m=>m.method==='sendMessage').at(-1);assert.match(receipt.text,/تم استلام تقريرك/);
-  const row=(await f.pool.query('SELECT * FROM employee_requests')).rows[0];
-  assert.equal(row.employee_id,5);assert.equal(row.approver_id,null);assert.equal(row.monitor_id,6);assert.equal(row.request_date,null);assert.equal(row.report_deadline,null);assert.equal(row.status,'report_received');
+  const greeting=await f.grant(5),buttons=greeting.reply_markup.inline_keyboard.flat();
+  const report=buttons.find(b=>b.text==='إرفاق تقرير طبي');
+  assert.match((await f.callback(1,report.callback_data)).text,/تسجيل العودة.*ثم إرفاق/);
+  await f.callback(2,buttons.find(b=>b.text==='تسجيل العودة من المرضية').callback_data);
+  const prompt=await f.callback(3,report.callback_data);assert.match(prompt.text,/خلال يومين كحد أقصى/);assert.doesNotMatch(prompt.text,/حدد رقم|اذكر تاريخ|ما تاريخ/);
+  await f.telegram.receive({update_id:4,message:{from:{id:700,is_bot:false},chat:{id:700,type:'private'},document:{file_id:'medical-file',file_size:512,mime_type:'application/pdf'}}});
+  assert.match(f.sent.filter(m=>m.method==='sendMessage').at(-1).text,/تم استلام تقريرك/);
+  const row=(await f.pool.query('SELECT * FROM employee_requests')).rows[0];assert.equal(row.employee_id,5);assert.equal(row.approver_id,null);assert.equal(row.monitor_id,6);assert.equal(row.status,'report_received');
  }finally{await f.pool.end();}
 });
 
@@ -151,5 +151,15 @@ test('API returns new assignment notifications once, preserves tasks and shares 
   const second=await chat({user_id:4,message:'مهامي'});assert.equal(second.notifications.length,0);assert.equal(second.tasks.length,1);assert.doesNotMatch(second.message,/إشعاراتك الجديدة/);
   assert.doesNotMatch((await f.grant(4)).text,/إشعاراتك الجديدة/);
   const other=await chat({user_id:5,message:'مهامي'});assert.equal(other.notifications.length,1);
+ }finally{await f.pool.end();}
+});
+
+test('logout clears active account and pending context and invalidates all old buttons',async()=>{
+ const f=await fixture();try {
+  const greeting=await f.grant(4);await f.send(1,'طلب غير مكتمل');
+  const buttons=greeting.reply_markup.inline_keyboard.flat();await f.callback(2,buttons.find(b=>b.text==='تسجيل الخروج').callback_data);
+  const row=(await f.pool.query('SELECT * FROM telegram_sessions')).rows[0];assert.equal(row.active_user_id,null);assert.equal(row.current_action,null);assert.equal(row.awaiting_id,true);
+  assert.equal((await f.pool.query('SELECT * FROM telegram_conversations')).rows.length,0);assert.equal((await f.pool.query('SELECT * FROM telegram_bindings')).rows.length,0);
+  assert.match((await f.callback(3,buttons[0].callback_data)).text,/قديم/);
  }finally{await f.pool.end();}
 });
