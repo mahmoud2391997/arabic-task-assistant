@@ -94,3 +94,20 @@ test('demo ID flow asks for ID, resolves database role, and supports separate ch
     assert.equal((await pool.query('SELECT * FROM telegram_bindings')).rows.length,2);
   } finally {await pool.end();}
 });
+
+test('Telegram request retries commit a single request and audit',{skip:!process.env.TELEGRAM_TEST_DATABASE_URL},async()=>{
+ const schema=`telegram_requests_${Date.now()}`;
+ const admin=new pg.Pool({connectionString:process.env.TELEGRAM_TEST_DATABASE_URL});await admin.query(`CREATE SCHEMA ${schema}`);
+ const pool=new pg.Pool({connectionString:process.env.TELEGRAM_TEST_DATABASE_URL,options:`-c search_path=${schema}`});
+ try {
+  await initialize(pool);
+  const telegram=createTelegram({pool,token:'123:test',secret,username:'example_bot',identityMode:'demo_id',
+    ai:async()=>({...base,action:'create_request',request_type:'expense',amount:650,currency:'SAR'}),
+    fetchImpl:async()=>({ok:true,json:async()=>({ok:true})})});
+  await telegram.receive(message(100,'4'));
+  const update=message(101,'قدم طلب مصروفات 650 ريال');
+  await Promise.all([telegram.receive(update),telegram.receive(update)]);
+  assert.equal((await pool.query('SELECT * FROM employee_requests')).rows.length,1);
+  assert.equal((await pool.query("SELECT * FROM audit_log WHERE action='create_request'")).rows.length,1);
+ } finally {await pool.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();}
+});

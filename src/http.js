@@ -55,7 +55,8 @@ export function createHandler({ chat, authMode = 'demo', tokens = {}, health = a
       }
       if (!body || !Number.isSafeInteger(body.user_id) || body.user_id < 1 || typeof body.message !== 'string' || !body.message.trim() || body.message.length > 4000) return send(res,400,{error:'Provide a positive integer user_id and message (1–4000 characters)'});
       if (identity && identity !== body.user_id) return send(res,403,{error:'user_id must match authenticated employee'});
-      const result = await chat(body);
+      // Attachments are accepted only from the authenticated Telegram webhook.
+      const result = await chat({user_id:body.user_id,message:body.message});
       send(res,result.action === 'reject' ? 403 : 200,result);
     } catch (error) {
       if (error instanceof AIError) return send(res,502,{action:'error', reply:'تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'});

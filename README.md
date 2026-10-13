@@ -1,6 +1,6 @@
 # Arabic task assistant — Node.js + Groq + PostgreSQL
 
-Server for the supplied AI engineer exercise. `POST /chat` creates tasks, lists tasks or answers from the six company policy clauses in Arabic. Data persists in PostgreSQL and can be hosted in the cloud. No frontend is required.
+Server for the supplied AI engineer exercise. `POST /chat` creates and updates tasks, handles employee requests and approvals, and answers from the six company policy clauses in Arabic. Data persists in PostgreSQL and can be hosted in the cloud. No frontend is required.
 
 ## Run
 
@@ -45,7 +45,7 @@ Response shape (IDs and dates depend on the database and current day):
 }
 ```
 
-Actions: `create_task`, `list_tasks`, `policy_answer`, `clarify`, `reject`, `error`. Business clarification uses HTTP 200; permission denial 403; malformed input 400; missing authentication 401; provider errors 502. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds.
+Actions: `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `decide_request`, `submit_report`, `update_task`, `clarify`, `reject`, `error`. Business clarification uses HTTP 200; permission denial 403; malformed input 400; missing authentication 401; provider errors 502. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds.
 
 ## Identity and permissions
 
@@ -68,20 +68,20 @@ Roles are loaded from PostgreSQL, never from messages or model output:
 
 ## Dates and policy
 
-The server resolves dates in `Asia/Riyadh`, stores timestamps as PostgreSQL `TIMESTAMPTZ`, and displays Riyadh time. `بكرة`, `بعد بكرة`, next weekdays and ISO dates are supported. A weekday means its next occurrence strictly after today, including “الجاي”. An explicit hour without AM/PM uses 24-hour time. “العصر” alone means 16:00; “1 الظهر” means 13:00. Missing or ambiguous details trigger clarification. Friday tasks move to Saturday at the same hour. Tasks outside office hours are allowed because the exercise only prohibits Friday.
+The server resolves dates in `Asia/Riyadh`, stores timestamps as PostgreSQL `TIMESTAMPTZ`, and displays Riyadh time. `بكرة`, `بعد بكرة`, next weekdays and ISO dates are supported. A weekday means its next occurrence strictly after today, including “الجاي”. An explicit hour without AM/PM uses 24-hour time. “العصر” alone means 16:00; “1 الظهر” means 13:00. Missing or ambiguous details trigger clarification. Friday tasks move to Saturday at the same hour. Task appointments are limited to 08:00–before 16:00 Sunday–Thursday and 08:00–before 12:00 Saturday. Hours are checked again after Friday shifts. Status updates must execute during working hours on the task’s due day, using the server clock.
 
 Groq extracts an intent and selects policy clause IDs. The application returns the exact selected source clauses; it does not use free-form generated policy answers. Unknown information returns “هذه المعلومة غير متوفرة في نص سياسة الشركة.” Relevance depends on model classification and is checked by the live demo. Unsupported details must be marked unknown in the extraction prompt.
 
 ## Verification and demo
 
-Verified locally on October 13, 2026: all five automated test groups passed against real PostgreSQL, and all ten live scenarios passed through Groq using `qwen/qwen3.8-27b`. The demo created three tasks in the local evaluation database.
+Automated coverage includes PostgreSQL permissions, all six policy answers, office-hour boundaries, request routing, supervisor/manager approvals, medical-report deadlines, status updates, concurrent remote-work approvals and Telegram retries. See [request workflows](docs/workflows.md) for commands and policy assumptions.
 
 ```bash
 npm test
 npm run demo
 ```
 
-Tests use a PostgreSQL emulator and mock AI results; they cover all ten supplied scenarios in order, date resolution, SQL permissions, prompt-role injection, HTTP authentication and provider failure. They do **not** establish live model accuracy. `npm run demo` sends the actual ten Arabic messages to the running server and calls Groq with your key. It creates real demo tasks on each run; use a separate evaluation database.
+Tests use a PostgreSQL emulator and mock AI results by default; they cover all ten supplied scenarios in order, date resolution, SQL permissions, prompt-role injection, HTTP authentication and provider failure. They do **not** establish live model accuracy. `npm run demo` sends the actual ten Arabic messages to the running server and calls Groq with your key. It creates real demo tasks on each run; use a separate evaluation database.
 
 To run the tests against actual PostgreSQL, set `TEST_DATABASE_URL` to a **disposable test database** before `npm test`. Tests drop and recreate the three application tables. Never point this variable at production.
 
@@ -92,3 +92,5 @@ See [design decisions](docs/decisions.md) for assumptions, cost calculation and 
 See [deployment instructions](docs/deployment.md). Cloud routes use the same chat and authorization implementation as the local server. Vercel deployments require token mode, and Neon schema initialization runs once before serving traffic.
 
 Live cloud verification also passed all ten scenarios. See [cloud deployment and test instructions](docs/deployment.md).
+
+See [Telegram setup](docs/telegram.md) and [request workflows](docs/workflows.md).

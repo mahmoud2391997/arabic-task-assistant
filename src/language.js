@@ -84,3 +84,35 @@ export function schedule(text, now) {
   if (error) return {error: `${shifted ? 'وافق الموعد يوم الجمعة، وبعد ترحيله إلى السبت: ' : ''}${error}`};
   return { dueAt, shifted, originalDate, date, time: timeString };
 }
+
+export function dateFromIntent(intent, now, {allowPast=false}={}) {
+  const today=riyadhToday(now);
+  let date;
+  if(intent.date_kind==='today') date=today;
+  else if(intent.date_kind==='tomorrow') date=addDays(today,1);
+  else if(intent.date_kind==='day_after_tomorrow') date=addDays(today,2);
+  else if(['calendar_days','business_days'].includes(intent.date_kind)) {
+    const count=Number(intent.date_value);
+    if(!/^\d+$/.test(intent.date_value)||count<1||count>366) return;
+    date=today;let added=0;
+    while(added<count) {date=addDays(date,1);if(intent.date_kind==='calendar_days'||new Date(`${date}T12:00:00Z`).getUTCDay()!==5) added++;}
+  } else if(intent.date_kind==='absolute'&&/^\d{4}-\d{2}-\d{2}$/.test(intent.date_value)) date=intent.date_value;
+  else if(intent.date_kind==='weekday') {
+    const weekday=days.indexOf(normalize(intent.date_value));
+    if(weekday<0) return;
+    const current=new Date(`${today}T12:00:00Z`).getUTCDay();date=addDays(today,(weekday-current+7)%7||7);
+  }
+  if(!date) return;
+  const parsed=new Date(`${date}T12:00:00Z`);
+  if(!Number.isFinite(parsed.getTime())||parsed.toISOString().slice(0,10)!==date||(!allowPast&&date<today)) return;
+  return date;
+}
+export function businessDaysBetween(from,to) {
+  let date=from,count=0;
+  while(date<to && count<367) {date=addDays(date,1);if(new Date(`${date}T12:00:00Z`).getUTCDay()!==5) count++;}
+  return count;
+}
+export function weekStart(date) {
+  return addDays(date,-new Date(`${date}T12:00:00Z`).getUTCDay());
+}
+export function addCalendarDays(date,count) {return addDays(date,count);}

@@ -27,7 +27,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   }
   async function processUpdate(client, message) {
     const id = message.from.id;
-    const text = message.text.trim();
+    const text = (message.text || message.caption || '').trim();
     const start = text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?$/);
     if (demo) {
       const choice=text.match(/^(?:\/employee(?:@[A-Za-z0-9_]+)?\s+)?([1-9][0-9]*)$/);
@@ -56,7 +56,8 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
     if (start || /^\/help(?:@[A-Za-z0-9_]+)?$/.test(text)) return welcome(client);
     const binding = (await client.query('SELECT employee_id FROM telegram_bindings WHERE telegram_id=$1 AND identity_mode=$2',[id,identityMode])).rows[0];
     if (binding) {
-      const result = await createChat({store:new Store(client,true),ai})({user_id:binding.employee_id,message:text});
+      const document=message.document || (message.photo?.length ? {file_id:message.photo.at(-1).file_id,file_size:message.photo.at(-1).file_size,mime_type:'image/jpeg'} : undefined);
+      const result = await createChat({store:new Store(client,true),ai})({user_id:binding.employee_id,message:text,document});
       return result.reply;
     }
     if (demo) return welcome(client);
@@ -80,7 +81,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
     },
     async receive(update) {
       const m=update?.message;
-      if (!Number.isSafeInteger(update?.update_id) || update.update_id<0 || !m || m.chat?.type!=='private' || !Number.isSafeInteger(m.from?.id) || m.from.id<=0 || m.from.is_bot || m.chat.id!==m.from.id || typeof m.text!=='string' || !m.text.trim() || m.text.length>4000) return;
+      if (!Number.isSafeInteger(update?.update_id) || update.update_id<0 || !m || m.chat?.type!=='private' || !Number.isSafeInteger(m.from?.id) || m.from.id<=0 || m.from.is_bot || m.chat.id!==m.from.id || typeof (m.text??m.caption)!=='string' || !(m.text??m.caption).trim() || (m.text??m.caption).length>4000) return;
       const client=await pool.connect(); let reply;
       try {
         await client.query('BEGIN');

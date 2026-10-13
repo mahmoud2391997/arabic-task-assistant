@@ -1,3 +1,4 @@
+import {executeWorkflow,WorkflowError} from './workflows.js';
 import { normalize, policy, schedule } from './language.js';
 import { canAccess } from './store.js';
 import { validateIntent } from './ai.js';
@@ -5,7 +6,7 @@ import { validateIntent } from './ai.js';
 const dateTokens = { today:'اليوم', tomorrow:'بكرة', day_after_tomorrow:'بعد بكرة' };
 const weekdays = ['الاحد','الاثنين','الثلاثاء','الاربعاء','الخميس','الجمعة','السبت'];
 export function createChat({ store, ai, clock = () => new Date() }) {
-  return async ({ user_id, message }) => {
+  return async ({ user_id, message, document }) => {
     const actor = await store.user(user_id);
     if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
     const users = await store.users();
@@ -17,11 +18,18 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     };
     const clarify = reply => finish({ action:'clarify', reply });
     const reject = () => finish({ action:'reject', reply:'لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين.' });
-    if (intent.action === 'clarify') return clarify('الطلب غير واضح. حدد الموظف ووصف المهمة وتاريخها ووقتها، أو اكتب «مهامي» أو اسأل عن السياسة.');
+    if (intent.action === 'clarify') return clarify('الطلب غير واضح. اكتب «مهامي» أو «طلباتي»، أو حدد نوع الطلب وتاريخه ورقمه عند الاعتماد أو تحديث الحالة.');
     if (intent.action === 'policy_question') {
       const ids = [...new Set(intent.policy_ids)];
       return finish({ action:'policy_answer', policy_ids: intent.policy_supported ? ids : [],
         reply: intent.policy_supported && ids.length ? ids.map(id => policy[id-1]).join('\n') : 'هذه المعلومة غير متوفرة في نص سياسة الشركة.' });
+    }
+    if (['create_request','list_requests','list_approvals','decide_request','submit_report','update_task'].includes(intent.action)) {
+      try {return await executeWorkflow({store,userId:actor.id,intent,now,document});}
+      catch(error) {
+        if (!(error instanceof WorkflowError)) throw error;
+        return finish({action:error.forbidden?'reject':'clarify',reply:error.message});
+      }
     }
     let target;
     if (intent.target === 'self') target = actor;

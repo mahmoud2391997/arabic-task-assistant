@@ -1,3 +1,6 @@
+import pg from 'pg';
+// SQL DATE is a calendar date, not local midnight converted to a UTC timestamp.
+pg.types.setTypeParser(1082, value => value);
 import { workingHoursError } from './language.js';
 export const employees = [
   [1, 'منيرة', 'الإدارة', 'manager'], [2, 'سارة', 'المشاريع', 'supervisor'],
@@ -16,6 +19,7 @@ export async function initialize(pool) {
     due_at TIMESTAMPTZ NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ');
   await pool.query(`CREATE TABLE IF NOT EXISTS audit_log (
     id SERIAL PRIMARY KEY, actor_id INTEGER REFERENCES employees(id),
     action TEXT NOT NULL, details JSONB NOT NULL,
@@ -36,6 +40,17 @@ export async function initialize(pool) {
     code_hash TEXT PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES employees(id),
     expires_at TIMESTAMPTZ NOT NULL
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS employee_requests (
+    id SERIAL PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES employees(id),
+    approver_id INTEGER REFERENCES employees(id), request_type TEXT NOT NULL
+      CHECK (request_type IN ('annual_leave','sick_leave','remote_work','expense')),
+    request_date DATE, amount NUMERIC(14,2), description TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL, report_deadline DATE, report_file_id TEXT,
+    decided_at TIMESTAMPTZ, report_received_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await pool.query('CREATE INDEX IF NOT EXISTS requests_approver_status ON employee_requests (approver_id,status)');
+  await pool.query('CREATE INDEX IF NOT EXISTS requests_employee_date ON employee_requests (employee_id,request_date)');
   await pool.query(`CREATE TABLE IF NOT EXISTS telegram_updates (
     update_id BIGINT PRIMARY KEY, reply TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
