@@ -10,6 +10,7 @@ All commands use the existing authenticated `POST /chat` API or the Telegram pri
 | Sick leave | سجّل إجازة مرضية، تاريخ العودة 2026-10-13 |
 | Own requests | طلباتي |
 | Pending approval inbox | طلبات للاعتماد |
+| Supervisor medical follow-up | متابعة التقارير |
 | Approve | اعتمد الطلب رقم 12 |
 | Reject | ارفض الطلب رقم 12 |
 | Medical report | Attach PDF/JPEG/PNG (up to 10 MiB), with caption تقرير الطلب 12 |
@@ -23,7 +24,7 @@ Expenses in SAR through 500 inclusive are routed to the department supervisor. G
 
 The seed has a unique projects supervisor (سارة), finance supervisor (عبدالرحمن), and manager (منيرة). Requests requiring a supervisor for an employee without a unique supervisor in their department ask for configuration; the system does not invent a reporting relationship. Consequently the seeded supervisors and manager cannot submit applications requiring their own direct supervisor until that relationship is configured.
 
-Sick-leave records require an explicit return date. The report deadline is the end of the second calendar day after return in Riyadh. Missing reports appear overdue when the record is read after this deadline. A late report can still be recorded as received late; the policy specifies no penalty, cancellation or automatic denial. Telegram file identifiers and receipt timestamps are stored, not document contents. HTTP JSON cannot forge an attachment; report submission requires the authenticated Telegram webhook. An attachment is required; a text claim is insufficient. Receipt does not certify medical authenticity. Overdue state is evaluated on access; there is no scheduled reminder service.
+Sick-leave records require an explicit return date. The report deadline is the end of the second calendar day after return in Riyadh. The department supervisor is assigned to monitor receipt, separately from approval. `متابعة التقارير` lists only sick-leave records assigned to that supervisor in their department, with return date, deadline and receipt status. Missing reports appear overdue when the record is read after this deadline. A late report can still be recorded as received late; the policy specifies no penalty, cancellation or automatic denial. Telegram file identifiers and receipt timestamps are stored, not document contents. HTTP JSON cannot forge an attachment; report submission requires the authenticated Telegram webhook. An attachment is required; a text claim is insufficient. Receipt does not certify medical authenticity. Overdue state is evaluated on access; there is no scheduled reminder service.
 
 Task status can be pending, in_progress or completed. The employee, department supervisor or manager must have access to the task. Updates are allowed only on its due day and during actual server-time working hours. After 16:00 Sunday–Thursday or 12:00 Saturday, including exact closing time, they require clarification without changing status. Timestamp and status are recorded in the task and audit log. Previous historical outside-hours demo tasks are retained.
 

@@ -41,14 +41,16 @@ function describe(row) {
 export async function executeWorkflow({store,userId,intent,now,document}) {
   return transaction(store,async client=>{
     const actor=await employee(client,userId);
-    if (['list_requests','list_approvals'].includes(intent.action)) {
+    if (['list_requests','list_approvals','list_reports'].includes(intent.action)) {
+      const reports=intent.action==='list_reports';
+      if (reports && actor.role!=='supervisor') throw new WorkflowError('متابعة التقارير الطبية للمشرف المختص فقط.',true);
       const approvals=intent.action==='list_approvals';
-      const condition=approvals ? "r.approver_id=$1 AND r.status='pending'" : 'r.employee_id=$1';
+      const condition=reports ? "r.monitor_id=$1 AND r.request_type='sick_leave' AND e.department=$2" : approvals ? "r.approver_id=$1 AND r.status='pending'" : 'r.employee_id=$1';
       const rows=(await client.query(`SELECT r.*,e.name AS employee_name,a.name AS approver_name
         FROM employee_requests r JOIN employees e ON e.id=r.employee_id LEFT JOIN employees a ON a.id=r.approver_id
-        WHERE ${condition} ORDER BY r.id DESC`,[actor.id])).rows.map(r=>publicRequest(r,now));
+        WHERE ${condition} ORDER BY r.id DESC`,reports ? [actor.id,actor.department] : [actor.id])).rows.map(r=>publicRequest(r,now));
       await audit(client,actor.id,intent.action,{count:rows.length});
-      return {action:intent.action,requests:rows,reply:rows.length ? (approvals?'طلبات بانتظار اعتمادك:\n':'طلباتك:\n')+rows.map(describe).join('\n') : (approvals?'لا توجد طلبات بانتظار اعتمادك.':'لا توجد طلبات لك.')};
+      return {action:intent.action,requests:rows,reply:rows.length ? (reports?'متابعة التقارير الطبية:\n':approvals?'طلبات بانتظار اعتمادك:\n':'طلباتك:\n')+rows.map(describe).join('\n') : (reports?'لا توجد تقارير طبية لمتابعتها في قسمك.':approvals?'لا توجد طلبات بانتظار اعتمادك.':'لا توجد طلبات لك.')};
     }
     if (['decide_request','submit_report','update_task'].includes(intent.action) && !Number.isSafeInteger(intent.record_id)) throw new WorkflowError('حدد رقم الطلب أو المهمة.');
     if(intent.action==='create_request') {
@@ -69,14 +71,16 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
       }
       const amount=type==='expense' ? intent.amount : null;
       if(type==='expense'&&(!Number.isFinite(amount)||amount<=0||amount>999999999999||Math.abs(amount*100-Math.round(amount*100))>0.00001||intent.currency!=='SAR')) throw new WorkflowError('حدد مبلغ المصروفات بالريال السعودي، برقم موجب لا يزيد عن منزلتين عشريتين.');
-      const reviewer=type==='sick_leave' ? null : await approver(client,actor,type,amount);
+      const assigned=await approver(client,actor,type,amount);
+      const reviewer=type==='sick_leave' ? null : assigned;
+      const monitor=type==='sick_leave' ? assigned : null;
       const deadline=type==='sick_leave' ? addCalendarDays(date,2) : null;
-      const row=(await client.query(`INSERT INTO employee_requests (employee_id,approver_id,request_type,request_date,amount,description,status,report_deadline,created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,[actor.id,reviewer?.id??null,type,date,amount,intent.description||'',type==='sick_leave'?'awaiting_report':'pending',deadline,now])).rows[0];
-      await audit(client,actor.id,'create_request',{request_id:row.id,type,approver_id:reviewer?.id??null});
+      const row=(await client.query(`INSERT INTO employee_requests (employee_id,approver_id,request_type,request_date,amount,description,status,report_deadline,created_at,monitor_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[actor.id,reviewer?.id??null,type,date,amount,intent.description||'',type==='sick_leave'?'awaiting_report':'pending',deadline,now,monitor?.id??null])).rows[0];
+      await audit(client,actor.id,'create_request',{request_id:row.id,type,approver_id:reviewer?.id??null,monitor_id:monitor?.id??null});
       const request=publicRequest(row,now);
       return {action:'create_request',request,reply:type==='sick_leave'
-        ? `تم تسجيل الإجازة المرضية #${row.id}. مهلة التقرير الطبي حتى نهاية ${deadline}. أرفق مستند التقرير مع تعليق «تقرير الطلب ${row.id}».${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
+        ? `تم تسجيل الإجازة المرضية #${row.id}. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق مستند التقرير مع تعليق «تقرير الطلب ${row.id}».${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
         : `تم تقديم طلب ${names[type]} #${row.id} إلى صندوق طلبات ${reviewer.name}. الطلب بانتظار موافقته، ولم يُعتمد بعد.`};
     }
     if(intent.action==='decide_request') {

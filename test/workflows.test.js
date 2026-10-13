@@ -145,3 +145,18 @@ test('approval inboxes separate manager and supervisor pending requests from own
   assert.equal((await run(1,{action:'list_approvals'})).requests.length,0);
  } finally {await close();}
 });
+
+test('supervisor medical monitoring is separate from approvals and scoped to assigned department',async()=>{
+ const {run,close}=await setup();
+ try {
+  const sick=await run(4,{action:'create_request',request_type:'sick_leave',date_kind:'absolute',date_value:'2026-10-10'});
+  assert.equal(sick.request.monitor_id,2);assert.equal(sick.request.approver_id,null);
+  const reports=await run(2,{action:'list_reports'});
+  assert.equal(reports.requests.length,1);assert.equal(reports.requests[0].status,'report_overdue');
+  assert.match(reports.reply,/خالد/);assert.match(reports.reply,/متأخر/);
+  assert.equal((await run(2,{action:'list_approvals'})).requests.length,0);
+  assert.equal((await run(6,{action:'list_reports'})).requests.length,0);
+  await assert.rejects(run(4,{action:'list_reports'}),/المشرف/);
+  await assert.rejects(run(2,{action:'decide_request',record_id:sick.request.id,status:'approved'}),/صلاحية/);
+ } finally {await close();}
+});

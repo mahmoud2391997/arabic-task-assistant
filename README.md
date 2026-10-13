@@ -45,7 +45,7 @@ Response shape (IDs and dates depend on the database and current day):
 }
 ```
 
-Actions: `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `decide_request`, `submit_report`, `update_task`, `clarify`, `reject`, `error`. Business clarification uses HTTP 200; permission denial 403; malformed input 400; missing authentication 401; provider errors 502. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds.
+Actions: `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `list_reports`, `decide_request`, `submit_report`, `update_task`, `clarify`, `reject`, `error`. Business clarification uses HTTP 200; permission denial 403; malformed input 400; missing authentication 401; provider errors 502. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds.
 
 ## Identity and permissions
 

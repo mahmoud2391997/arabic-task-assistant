@@ -24,7 +24,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
       return finish({ action:'policy_answer', policy_ids: intent.policy_supported ? ids : [],
         reply: intent.policy_supported && ids.length ? ids.map(id => policy[id-1]).join('\n') : 'هذه المعلومة غير متوفرة في نص سياسة الشركة.' });
     }
-    if (['create_request','list_requests','list_approvals','decide_request','submit_report','update_task'].includes(intent.action)) {
+    if (['create_request','list_requests','list_approvals','list_reports','decide_request','submit_report','update_task'].includes(intent.action)) {
       try {return await executeWorkflow({store,userId:actor.id,intent,now,document});}
       catch(error) {
         if (!(error instanceof WorkflowError)) throw error;
