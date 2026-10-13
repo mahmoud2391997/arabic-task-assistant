@@ -1,8 +1,10 @@
-import { scenarios } from '../test/scenarios.js';
+import { scenarios, scenarioExpected } from '../test/scenarios.js';
 const baseURL = process.env.SERVER_URL || 'http://localhost:3000';
 const tokens = JSON.parse(process.env.AUTH_TOKENS_JSON || '{}');
 let failed = false;
-for (const {id,user_id,message,expected} of scenarios) {
+for (const scenario of scenarios) {
+  const {id,user_id,message} = scenario;
+  const expected = scenarioExpected(scenario);
   const response = await fetch(`${baseURL}/chat`,{
     method:'POST',headers:{'Content-Type':'application/json',
       ...(tokens[user_id] ? {Authorization:`Bearer ${tokens[user_id]}`} : {})},

@@ -1,3 +1,4 @@
+import { workingHoursError } from './language.js';
 export const employees = [
   [1, 'منيرة', 'الإدارة', 'manager'], [2, 'سارة', 'المشاريع', 'supervisor'],
   [3, 'فهد', 'المشاريع', 'employee'], [4, 'خالد', 'المشاريع', 'employee'],
@@ -63,6 +64,7 @@ export class Store {
       const actor = (await client.query('SELECT * FROM employees WHERE id=$1 FOR SHARE', [actorId])).rows[0];
       const target = (await client.query('SELECT * FROM employees WHERE id=$1 FOR SHARE', [targetId])).rows[0];
       if (!actor || !target || !canAccess(actor, target)) throw new Error('FORBIDDEN');
+      if (workingHoursError(dueAt)) throw new Error('OUTSIDE_WORKING_HOURS');
       const task = (await client.query(`INSERT INTO tasks (assignee_id,created_by,description,due_at)
         VALUES ($1,$2,$3,$4) RETURNING *`, [target.id, actor.id, description, dueAt])).rows[0];
       await client.query('INSERT INTO audit_log (actor_id,action,details) VALUES ($1,$2,$3)',

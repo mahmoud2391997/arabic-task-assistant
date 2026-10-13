@@ -6,7 +6,7 @@ import { initialize, Store } from '../src/store.js';
 import { createChat } from '../src/chat.js';
 import { createServer } from '../src/http.js';
 import { createAI, AIError } from '../src/ai.js';
-import { schedule, riyadhToday, policy } from '../src/language.js';
+import { schedule, riyadhToday, policy, workingHoursError } from '../src/language.js';
 import { scenarios, base } from './scenarios.js';
 
 async function setup() {
@@ -25,7 +25,7 @@ test('T01–T10 business scenarios, with mocked AI and SQL-backed store', async 
     const results = [];
     for (const scenario of scenarios) {
       const result = await chat(scenario); results.push(result);
-      assert.equal(result.action,scenario.expected,scenario.id);
+      assert.equal(result.action,scenario.id === 'T09' ? 'clarify' : scenario.expected,scenario.id);
     }
     assert.equal(results[0].task.assignee_id,4);
     assert.equal(new Date(results[0].task.due_at).toISOString(),'2026-10-15T07:00:00.000Z');
@@ -36,9 +36,8 @@ test('T01–T10 business scenarios, with mocked AI and SQL-backed store', async 
     assert.equal(results[4].tasks[0].id,results[0].task_id);
     assert.equal(results[5].reply,policy[1]);
     assert.match(results[6].reply,/غير متوفرة/);
-    assert.equal(results[8].rescheduled,true);
-    assert.equal(new Date(results[8].task.due_at).toISOString(),'2026-10-17T10:00:00.000Z');
-    assert.equal((await pool.query('SELECT * FROM tasks')).rows.length,3);
+    assert.match(results[8].reply,/الجمعة.*السبت.*خارج ساعات/);
+    assert.equal((await pool.query('SELECT * FROM tasks')).rows.length,2);
     assert.equal((await pool.query('SELECT * FROM audit_log')).rows.length,10);
   } finally { await pool.end(); }
 });
@@ -61,7 +60,7 @@ test('repository rejects unauthorized assignments and reads even when bypassing 
 
 test('date resolver uses Riyadh, rolls Friday, validates dates, ambiguity and hours', () => {
   assert.equal(riyadhToday(new Date('2026-10-14T22:30:00Z')),'2026-10-15');
-  assert.equal(schedule('بعد بكرة 13:00',now).dueAt,'2026-10-17T13:00:00+03:00');
+  assert.match(schedule('بعد بكرة 13:00',now).error,/السبت.*خارج ساعات/);
   assert.equal(schedule('الأحد 10:00',now).date,'2026-10-18');
   assert.ok(schedule('2026-02-30 09:00',now).error);
   assert.ok(schedule('بكرة 25:00',now).error);
@@ -125,4 +124,35 @@ test('cloud runtime enforces token mode and verified database TLS', async () => 
   const config=databaseConfig({VERCEL:'1',DATABASE_URL:'postgres://test:test@example.com/app?sslmode=require',DATABASE_SSL:'true'});
   assert.equal(config.ssl.rejectUnauthorized,true);assert.equal(config.max,3);
   assert.ok(!config.connectionString.includes('sslmode'));
+});
+
+test('working-hour enforcement covers boundaries, Saturday, Friday shifting and repository bypass',async()=>{
+  for(const time of ['07:59','16:00','19:00','00:00']) assert.ok(workingHoursError(`2026-10-15T${time}:00+03:00`),time);
+  for(const time of ['08:00','15:59']) assert.equal(workingHoursError(`2026-10-15T${time}:00+03:00`),undefined,time);
+  for(const time of ['07:59','12:00','13:00']) assert.ok(workingHoursError(`2026-10-17T${time}:00+03:00`),time);
+  for(const time of ['08:00','11:59']) assert.equal(workingHoursError(`2026-10-17T${time}:00+03:00`),undefined,time);
+  assert.ok(workingHoursError('2026-10-16T09:00:00+03:00'));
+  assert.equal(workingHoursError('2026-10-15T05:00:00Z'),undefined); // 08:00 Riyadh.
+  assert.equal(schedule('الجمعة 09:00',now).shifted,true);
+  assert.match(schedule('الجمعة 13:00',now).error,/الجمعة.*السبت.*خارج ساعات/);
+  const {pool,store}=await setup();
+  try {
+    await assert.rejects(store.create(1,4,'outside','2026-10-15T19:00:00+03:00'),/OUTSIDE_WORKING_HOURS/);
+    const chat=createChat({store,clock:()=>now,ai:async()=>({...base,action:'create_task',description:'outside',date_kind:'tomorrow',time:'19:00'})});
+    assert.match((await chat({user_id:1,message:'outside'})).reply,/خارج ساعات/);
+    assert.equal((await pool.query('SELECT * FROM tasks')).rows.length,0);
+  } finally {await pool.end();}
+});
+
+test('all six policy answers use the exact source clauses, and unsupported questions do not invent',async()=>{
+  const {pool,store}=await setup();
+  try {
+    for(let id=1;id<=6;id++) {
+      const chat=createChat({store,ai:async()=>({...base,action:'policy_question',policy_supported:true,policy_ids:[id]})});
+      assert.equal((await chat({user_id:3,message:'policy'})).reply,policy[id-1]);
+    }
+    const chat=createChat({store,ai:async()=>({...base,action:'policy_question',policy_supported:false,policy_ids:[1]})});
+    const result=await chat({user_id:3,message:'unknown'});
+    assert.deepEqual(result.policy_ids,[]);assert.match(result.reply,/غير متوفرة/);
+  } finally {await pool.end();}
 });

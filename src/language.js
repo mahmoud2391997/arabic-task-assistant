@@ -25,6 +25,20 @@ export function riyadhToday(now) {
   const p = Object.fromEntries(parts.map(x => [x.type, x.value]));
   return `${p.year}-${p.month}-${p.day}`;
 }
+export function workingHoursError(value) {
+  const instant = new Date(value);
+  if (!Number.isFinite(instant.getTime())) return 'الموعد غير صحيح.';
+  const date = riyadhToday(instant);
+  const day = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Riyadh', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(instant).map(p => [p.type,p.value]));
+  const minutes = Number(parts.hour)*60+Number(parts.minute);
+  if (day === 5) return 'لا تسجّل مهام يوم الجمعة. حدد موعداً خلال دوام السبت.';
+  const closing = day === 6 ? 12*60 : 16*60;
+  if (minutes < 8*60 || minutes >= closing) return day === 6
+    ? 'الموعد خارج ساعات دوام السبت. اختر وقتاً من 08:00 صباحاً إلى ما قبل 12:00 ظهراً.'
+    : 'الموعد خارج ساعات الدوام. اختر وقتاً من 08:00 صباحاً إلى ما قبل 16:00 عصراً من الأحد إلى الخميس.';
+}
+
 export function schedule(text, now) {
   text = normalize(text);
   const today = riyadhToday(now);
@@ -65,5 +79,8 @@ export function schedule(text, now) {
   const shifted = new Date(`${date}T12:00:00Z`).getUTCDay() === 5;
   if (shifted) date = addDays(date, 1);
   const timeString = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
-  return { dueAt: `${date}T${timeString}:00+03:00`, shifted, originalDate, date, time: timeString };
+  const dueAt = `${date}T${timeString}:00+03:00`;
+  const error = workingHoursError(dueAt);
+  if (error) return {error: `${shifted ? 'وافق الموعد يوم الجمعة، وبعد ترحيله إلى السبت: ' : ''}${error}`};
+  return { dueAt, shifted, originalDate, date, time: timeString };
 }

@@ -25,3 +25,7 @@ TELEGRAM_TEST_DATABASE_URL=postgresql://assistant:assistant@localhost:5433/assis
 ```
 
 The integration test creates and drops its own temporary schema. It covers one-use linking, authentication, private chats, public policy access in secure mode, demo ID selection, failed delivery retries, and concurrent idempotency on real PostgreSQL.
+
+Task appointments must be inside Riyadh working hours: Sunday–Thursday 08:00 <= time < 16:00, Saturday 08:00 <= time < 12:00. Friday moves to Saturday at the same time, then Saturday hours are checked; a Friday afternoon appointment therefore requires a new time. Validation runs in the chat service and repository. Existing historical test tasks are retained.
+
+Policy answers quote the six source clauses. Leave applications, medical-document tracking, remote-work approvals, expense approvals, and supervisor notifications do not currently have workflow endpoints or state; a policy answer does not submit a request. Missing-report penalties are not specified in the supplied policy.

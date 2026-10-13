@@ -1,6 +1,6 @@
 import {mkdir,writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
-import {scenarios} from '../test/scenarios.js';
+import {scenarios,scenarioExpected} from '../test/scenarios.js';
 const baseURL=process.env.SERVER_URL;
 if(!baseURL || new URL(baseURL).protocol!=='https:') throw new Error('Set SERVER_URL to the verified HTTPS deployment URL');
 const cli=process.env.VERCEL_CLI_PATH || 'vercel';
@@ -9,7 +9,9 @@ const tokens=JSON.parse(process.env.AUTH_TOKENS_JSON || '{}');
 await mkdir('.tools/live-headers',{recursive:true,mode:0o700});
 const results=[];
 let createdForKhalid;
-for(const {id,user_id,message,expected} of scenarios) {
+for(const scenario of scenarios) {
+  const {id,user_id,message} = scenario;
+  const expected = scenarioExpected(scenario);
   if(!tokens[user_id]) throw new Error('Missing employee token for live demo');
   const headerFile=`.tools/live-headers/${user_id}.txt`;
   await writeFile(headerFile,`Content-Type: application/json\nAuthorization: Bearer ${tokens[user_id]}\n`,{mode:0o600});
