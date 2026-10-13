@@ -32,7 +32,8 @@ export function identityRequest(text,awaiting) {
 export function createTelegram({pool,ai,token,secret,username,identityMode='secure_link',fetchImpl=fetch,clock=()=>new Date()}) {
  if(!token||!secret||secret.length<32||!/^[A-Za-z0-9_]+bot$/i.test(username||'')) throw new Error('Set Telegram token, username and strong webhook secret');
  if(!['secure_link','demo_id'].includes(identityMode)) throw new Error('Invalid Telegram identity mode');
- // Legacy demo configuration no longer bypasses account authorization.
+ const demo=identityMode==='demo_id';
+ const onboarding=demo?'أهلاً بك في مساعد المهام! 👋 أرسل رقم الموظف (User ID) للمتابعة. اختيار الحساب بالرقم مفعّل للتجربة.':welcome;
  async function api(method,body) {
   let response;try {response=await fetchImpl(`https://api.telegram.org/bot${token}/${method}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(15000)});}catch{throw new Error('Telegram transport failed');}
   const data=await response.json().catch(()=>({}));if(!response.ok||data.ok!==true) throw new Error('Telegram request failed');return data.result;
@@ -45,10 +46,10 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   const user=await new Store(client,true).user(userId);
   if(!user) return {reply:'رقم الموظف غير موجود. أرسل رقماً صحيحاً.',action_type:'rejection'};
   const allowed=(await client.query('SELECT employee_id FROM telegram_access WHERE telegram_id=$1 AND employee_id=$2',[id,userId])).rows.length;
-  if(!allowed) return {reply:'الحساب غير مصرح لك باستخدامه. اطلب رابط الربط الآمن من مسؤول النظام ثم أرسل رقم الموظف. الحساب الحالي لم يتغير.',action_type:'rejection'};
+  if(!demo&&!allowed) return {reply:'الحساب غير مصرح لك باستخدامه. اطلب رابط الربط الآمن من مسؤول النظام ثم أرسل رقم الموظف. الحساب الحالي لم يتغير.',action_type:'rejection'};
   const revision=randomBytes(8).toString('hex');
   await client.query('UPDATE telegram_sessions SET active_user_id=$1,awaiting_id=false,current_action=NULL,revision=$2,expires_at=$3 WHERE telegram_id=$4',[userId,revision,new Date(clock().getTime()+86400000),id]);
-  await client.query("INSERT INTO telegram_bindings (telegram_id,employee_id,identity_mode) VALUES ($1,$2,'secure_link') ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,identity_mode='secure_link'",[id,userId]);
+  await client.query("INSERT INTO telegram_bindings (telegram_id,employee_id,identity_mode) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,identity_mode=EXCLUDED.identity_mode",[id,userId,demo?'demo_id':'secure_link']);
   await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);
   await new Store(client,true).audit(userId,'telegram_identity',{});
   return {reply:introduction(user),action_type:'execution',menu:keyboard(user,revision)};
@@ -65,12 +66,12 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   }
   if(start) {
    await client.query("UPDATE telegram_sessions SET awaiting_id=true,current_action='identify',revision=$1,expires_at=$2 WHERE telegram_id=$3",[randomBytes(8).toString('hex'),new Date(clock().getTime()+86400000),id]);
-   await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);return {reply:welcome};
+   await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);return {reply:onboarding};
   }
   const choice=identityRequest(text,s.awaiting_id);if(choice!==undefined) return activate(client,id,choice,s);
   if(new Date(s.expires_at)<=clock()) {
    await client.query('UPDATE telegram_sessions SET active_user_id=NULL,awaiting_id=true,current_action=NULL,revision=$1 WHERE telegram_id=$2',[randomBytes(8).toString('hex'),id]);
-   await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);return {reply:'انتهت جلسة المحادثة. '+welcome};
+   await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);return {reply:'انتهت جلسة المحادثة. '+onboarding};
   }
   if(callback) {
    const [revision,key]=callback.data?.split(':')||[];
@@ -85,10 +86,10 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
     const intent=validateIntent(await ai({message:text,users:[],now:clock()}));
     if(intent.action==='policy_question') {const ids=[...new Set(intent.policy_ids)];return classifyResponse({action:'policy_answer',policy_ids:intent.policy_supported?ids:[],reply:intent.policy_supported&&ids.length?ids.map(i=>policy[i-1]).join('\n'):'هذه المعلومة غير متوفرة في نص سياسة الشركة.'});}
    }
-   return {reply:welcome};
+   return {reply:onboarding};
   }
   const allowed=(await client.query('SELECT employee_id FROM telegram_access WHERE telegram_id=$1 AND employee_id=$2',[id,s.active_user_id])).rows.length;
-  if(!allowed) return {reply:'صلاحية الحساب غير متاحة. '+welcome,action_type:'rejection'};
+  if(!demo&&!allowed) return {reply:'صلاحية الحساب غير متاحة. '+onboarding,action_type:'rejection'};
   const previous=(await client.query('SELECT messages FROM telegram_conversations WHERE telegram_id=$1 AND employee_id=$2',[id,s.active_user_id])).rows[0]?.messages||[];
   const history=Array.isArray(previous)?previous.slice(-6):[];
   const document=m.document||(m.photo?.length?{file_id:m.photo.at(-1).file_id,file_size:m.photo.at(-1).file_size,mime_type:'image/jpeg'}:undefined);

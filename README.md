@@ -45,7 +45,7 @@ Response shape (IDs and dates depend on the database and current day):
 }
 ```
 
-Actions: `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `list_reports`, `decide_request`, `submit_report`, `update_task`, `clarify`, `reject`, `error`. Every chat result includes `response_type`: `execution`, `rejection`, `execution_rescheduled` or `clarification`. Unknown policy answers use clarification. Business clarification uses HTTP 200; permission denial 403; malformed input 400; missing authentication 401; provider errors 502. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds.
+Actions include `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `list_reports`, `decide_request`, `submit_report`, and `update_task`; unrecognized actions use `unknown`. Every JSON response includes `action`, `action_type` and `message`. Outcomes are `execution`, `rejection`, `postpone`, `inquiry`, and `exception`. Legacy `reply` and `response_type` remain compatibility aliases. `/chat` accepts `prompt` or the existing `message`, with a positive integer `user_id` matching the bearer identity. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds. See [the integration contract](docs/integration-contract.md) for Telegram verification, sessions and CI/CD.
 
 ## Identity and permissions
 

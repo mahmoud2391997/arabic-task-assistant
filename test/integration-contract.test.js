@@ -74,3 +74,15 @@ test('API prompt and Telegram buttons share read logic; every HTTP success/error
   for(const [input,type] of [[{action:'create_task'},'execution'],[{action:'reject'},'rejection'],[{action:'create_task',rescheduled:true},'postpone'],[{action:'clarify'},'inquiry'],[{action:'error'},'exception']]) assert.equal(classifyResponse(input).action_type,type);
  }finally{await f.pool.end();}
 });
+
+test('explicit demo mode accepts ID-only selection without creating verified grants',async()=>{
+ const Pool=newDb().adapters.createPg().Pool,pool=new Pool();await initialize(pool);const sent=[];
+ try {
+  const telegram=createTelegram({pool,identityMode:'demo_id',token:'123:test',secret:'s'.repeat(64),username:'example_bot',ai:async()=>({...base,action:'clarify'}),fetchImpl:async(_url,o)=>{sent.push(JSON.parse(o.body));return {ok:true,json:async()=>({ok:true})};}});
+  await telegram.receive(update(1,'/start'));await telegram.receive(update(2,'5'));
+  assert.match(sent.at(-1).text,/نورة/);assert.ok(sent.at(-1).reply_markup.inline_keyboard.length);
+  assert.equal((await pool.query('SELECT * FROM telegram_access')).rows.length,0);
+  assert.equal((await pool.query('SELECT identity_mode FROM telegram_bindings')).rows[0].identity_mode,'demo_id');
+  await pool.query("INSERT INTO telegram_access (telegram_id,employee_id) SELECT telegram_id,employee_id FROM telegram_bindings WHERE identity_mode='secure_link' ON CONFLICT (telegram_id,employee_id) DO NOTHING");assert.equal((await pool.query('SELECT * FROM telegram_access')).rows.length,0);
+ }finally{await pool.end();}
+});
