@@ -1,4 +1,4 @@
-import {classifyResponse} from './responses.js';
+import {classifyResponse,notificationText} from './responses.js';
 import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {Store} from './store.js';
 import {createChat} from './chat.js';
@@ -22,9 +22,6 @@ const requestActions=[['annual','إجازة اعتيادية','أريد تقدي
 function requestKeyboard(revision) {return {inline_keyboard:requestActions.map(a=>[{text:a[1],callback_data:`${revision}:${a[0]}`}])};}
 function keyboard(user,revision) {
  return {inline_keyboard:actions.filter(a=>!a[3]||a[3].includes(user.role)).map(a=>[{text:a[1],callback_data:`${revision}:${a[0]}`}])};
-}
-function notificationText(rows) {
- return rows.length?'إشعاراتك الجديدة:\n'+rows.map(n=>`${n.actor_role==='manager'?'المدير':'المشرف'} ${n.actor_name} أسند لك مهمة #${n.task_id}: ${n.description}`).join('\n')+'\n\n':'';
 }
 function introduction(user) {
  return `تعرفت على حسابك، أهلاً ${user.name}! 👋\n${actions.filter(a=>!a[3]||a[3].includes(user.role)).map(a=>a[1]).join('، ')}.\nتحدث بالعربية الفصحى أو باللهجة السعودية أو بصياغتك المعتادة. إذا احتجت تفاصيل سأطلبها منك.`;
@@ -104,8 +101,6 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   const document=attachment;
   if(!text&&attachment) text=s.current_action==='submit_report'?'أرفق التقرير الطبي':'أرسلت مرفقاً';
   const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType,requireLeaveRange:true});
-  const notices=await new Store(client,true).consumeNotifications(s.active_user_id);
-  result.message=notificationText(notices)+result.message;result.reply=result.message;
   const messages=[...history,{role:'user',content:text.slice(0,1200)},{role:'assistant',content:result.message.slice(0,1200)}].slice(-6);
   await client.query('INSERT INTO telegram_conversations (telegram_id,employee_id,messages) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,messages=EXCLUDED.messages',[id,s.active_user_id,JSON.stringify(messages)]);
   await client.query('UPDATE telegram_sessions SET current_action=$1,expires_at=$2 WHERE telegram_id=$3',[result.action_type==='inquiry'?result.action:null,new Date(clock().getTime()+86400000),id]);

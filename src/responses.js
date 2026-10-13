@@ -10,3 +10,12 @@ export function classifyResponse(result={}) {
   return {...result,action,action_type,message,reply:message,response_type};
 }
 export function presentReply(reply) {return reply;}
+
+export function notificationText(rows) {
+  return rows.length?'إشعاراتك الجديدة:\n'+rows.map(n=>`${n.actor_role==='manager'?'المدير':'المشرف'} ${n.actor_name} أسند لك مهمة #${n.task_id}: ${n.description}`).join('\n')+'\n\n':'';
+}
+export function withNotifications(result,notifications) {
+  const normalized=classifyResponse(result);
+  const message=notificationText(notifications)+normalized.message;
+  return {...normalized,message,reply:message,notifications};
+}

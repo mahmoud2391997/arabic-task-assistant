@@ -31,3 +31,5 @@ Task appointments must be inside Riyadh working hours: Sunday–Thursday 08:00 <
 Policy answers quote the six source clauses. Leave applications, medical-report receipt, remote-work approvals, expense approvals and task status updates now share the chat API. Requests appear in the assigned approver’s inbox; this version does not push unsolicited notifications to separate Telegram accounts. See [workflow commands](workflows.md). Missing-report penalties are not specified in the supplied policy.
 
 Task assignments by a supervisor or manager create a persisted recipient notification in the same transaction as the task. It is shown once when the employee identifies their account or next interacts with the bot, with the assigning person’s name. Displaying the notification does not remove or modify the task. Telegram provides no bot event for merely opening a chat without interacting.
+
+API responses also include newly assigned task notifications through the same processor, in the message and a notifications array. A notification shown through API is no longer new in Telegram, and vice versa. Tasks remain available independently of their notification status.

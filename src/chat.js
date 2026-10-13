@@ -1,4 +1,4 @@
-import {classifyResponse} from './responses.js';
+import {classifyResponse,withNotifications} from './responses.js';
 import {executeWorkflow,WorkflowError} from './workflows.js';
 import { normalize, policy, schedule } from './language.js';
 import { canAccess } from './store.js';
@@ -85,5 +85,8 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     return { action:'create_task', task_id:task.id, task, rescheduled:due.shifted,
       reply:`تم تسجيل المهمة لـ${target.name} بتاريخ ${due.date} الساعة ${due.time}.${due.shifted ? ' وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.' : ''}` };
   };
-  return async input => classifyResponse(await execute(input));
+  return async input => {
+    const result=classifyResponse(await execute(input));
+    return withNotifications(result,await store.consumeNotifications(input.user_id));
+  };
 }

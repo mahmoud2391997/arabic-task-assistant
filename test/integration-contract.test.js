@@ -142,3 +142,14 @@ test('supervisor assignment notification appears once on employee login and stay
   const other=await f.grant(5,701);assert.match(other.text,/المدير منيرة أسند لك مهمة/);assert.doesNotMatch(other.text,/مراجعة مخططات/);
  }finally{await f.pool.end();}
 });
+
+test('API returns new assignment notifications once, preserves tasks and shares seen state with Telegram',async()=>{
+ const f=await fixture();try {
+  const store=new Store(f.pool);await store.create(2,4,'مهمة بإشعار API','2026-10-15T10:00:00+03:00');await store.create(1,5,'إشعار شخص آخر','2026-10-15T10:00:00+03:00');
+  const chat=createChat({store,ai:async()=>({...base,action:'clarify'})});
+  const first=await chat({user_id:4,message:'أهلاً'});assert.equal(first.notifications.length,1);assert.match(first.message,/المشرف سارة/);assert.doesNotMatch(first.message,/إشعار شخص آخر/);
+  const second=await chat({user_id:4,message:'مهامي'});assert.equal(second.notifications.length,0);assert.equal(second.tasks.length,1);assert.doesNotMatch(second.message,/إشعاراتك الجديدة/);
+  assert.doesNotMatch((await f.grant(4)).text,/إشعاراتك الجديدة/);
+  const other=await chat({user_id:5,message:'مهامي'});assert.equal(other.notifications.length,1);
+ }finally{await f.pool.end();}
+});
