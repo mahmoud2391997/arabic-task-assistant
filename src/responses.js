@@ -19,3 +19,13 @@ export function withNotifications(result,notifications) {
   const message=notificationText(notifications)+normalized.message;
   return {...normalized,message,reply:message,notifications};
 }
+
+export function apiResponse(result) {
+  const normalized=classifyResponse(result);
+  const response={action:normalized.action,action_type:normalized.action_type,message:normalized.message};
+  for(const key of ['task_id','task','tasks','request','requests','entries','policy_ids','rescheduled','data','url','expires_in_seconds','status','ok']) {
+    if(normalized[key]!==undefined) response[key]=normalized[key];
+  }
+  if(normalized.notifications?.length) response.notifications=normalized.notifications;
+  return response;
+}

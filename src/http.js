@@ -1,11 +1,11 @@
 import http from 'node:http';
-import {classifyResponse} from './responses.js';
+import {apiResponse} from './responses.js';
 import { timingSafeEqual } from 'node:crypto';
 import { AIError } from './ai.js';
 
 function send(res, status, body) {
   res.writeHead(status, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store' });
-  res.end(JSON.stringify(classifyResponse(body)));
+  res.end(JSON.stringify(apiResponse(body)));
 }
 function tokenIdentity(req, tokens) {
   const supplied = req.headers.authorization?.replace(/^Bearer /, '') ?? '';

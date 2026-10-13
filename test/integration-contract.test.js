@@ -163,3 +163,10 @@ test('logout clears active account and pending context and invalidates all old b
   assert.match((await f.callback(3,buttons[0].callback_data)).text,/قديم/);
  }finally{await f.pool.end();}
 });
+
+test('public API response contains no duplicate legacy or internal fields',async()=>{
+ const {apiResponse}=await import('../src/responses.js');
+ const result=apiResponse({action:'list_tasks',request_action:'list_tasks',request_type:'',reply:'لا توجد مهام',response_type:'execution',tasks:[],notifications:[]});
+ assert.deepEqual(result,{action:'list_tasks',action_type:'execution',message:'لا توجد مهام',tasks:[]});
+ assert.deepEqual(apiResponse({error:'Invalid JSON'}),{action:'unknown',action_type:'rejection',message:'Invalid JSON'});
+});

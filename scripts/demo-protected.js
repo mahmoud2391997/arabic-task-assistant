@@ -26,7 +26,7 @@ for(const scenario of scenarios) {
   if(id==='T03') passed &&= result.rescheduled===true;
   if(id==='T05') passed &&= result.tasks?.every(t=>t.assignee_id===4) && result.tasks.some(t=>t.id===createdForKhalid);
   if(id==='T06') passed &&= result.policy_ids?.includes(2);
-  if(id==='T07') passed &&= result.reply?.includes('غير متوفرة');
+  if(id==='T07') passed &&= result.message?.includes('غير متوفرة');
   const record={id,passed,status,action:result.action};results.push(record);console.log(JSON.stringify(record));
 }
 await writeFile('.tools/cloud-demo-results.json',JSON.stringify(results,null,2)+'\n',{mode:0o600});

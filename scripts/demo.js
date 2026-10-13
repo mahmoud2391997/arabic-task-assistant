@@ -15,7 +15,7 @@ for (const scenario of scenarios) {
   if (id === 'T03') passed &&= result.rescheduled === true;
   if (id === 'T05') passed &&= result.tasks?.some(t => t.assignee_id === 4 && t.description.includes('عرض السعر'));
   if (id === 'T06') passed &&= result.policy_ids?.includes(2);
-  if (id === 'T07') passed &&= result.reply?.includes('غير متوفرة');
+  if (id === 'T07') passed &&= result.message?.includes('غير متوفرة');
   failed ||= !passed;
   console.log(JSON.stringify({id,passed,http_status:response.status,result},null,2));
 }
