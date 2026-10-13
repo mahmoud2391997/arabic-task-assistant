@@ -8,3 +8,8 @@ coverage/
 .vercel/
 
 .tools/
+.vercel
+.env*
+
+.agents/
+skills-lock.json

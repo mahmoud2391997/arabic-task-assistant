@@ -5,3 +5,9 @@ node_modules
 tmp
 test
 .git
+
+.tools/
+.vercel/
+
+.agents/
+skills-lock.json

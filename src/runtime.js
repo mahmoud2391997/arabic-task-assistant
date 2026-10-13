@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { readFileSync } from 'node:fs';
+import { attachDatabasePool } from '@vercel/functions';
 import { Store } from './store.js';
 import { createAI } from './ai.js';
 import { createChat } from './chat.js';
@@ -24,6 +25,7 @@ export function createRuntime(env = process.env) {
   const ai = createAI({baseURL:env.AI_BASE_URL || 'https://api.groq.com/openai/v1',
     apiKey:env.GROQ_API_KEY || env.AI_API_KEY, model:env.AI_MODEL || 'qwen/qwen3.8-27b'});
   const pool = new pg.Pool(databaseConfig(env));
+  if (env.VERCEL) attachDatabasePool(pool);
   pool.on('error', () => console.error('Idle database connection failed'));
   try {
     const handler = createHandler({chat:createChat({store:new Store(pool),ai}),
