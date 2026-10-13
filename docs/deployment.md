@@ -33,3 +33,17 @@ SERVER_URL=https://your-project.vercel.app node --env-file=.env.production.local
 Vercel deployment protection may require a separate authorized testing workflow; do not disable it blindly. The demo creates three evaluation tasks. Automated destructive database tests remain restricted to a disposable `TEST_DATABASE_URL`; never run those against the Neon production database.
 
 References: [Vercel Node.js functions](https://vercel.com/docs/functions/runtimes/node-js), [Neon connection pooling](https://neon.com/docs/connect/connection-pooling).
+
+## Verified deployed environment
+
+On October 13, 2026, the production deployment at https://arabic-task-assistant-iti1.vercel.app passed all ten live scenarios against Groq and the newly provisioned Neon free-plan database. The runtime uses token authentication and verified PostgreSQL TLS. The existing Vercel protection setting also requires a Vercel login for requests to the generated domain.
+
+For authenticated testing without exposing token values:
+
+```bash
+SERVER_URL=https://arabic-task-assistant-iti1.vercel.app VERCEL_CLI_PATH=.tools/vercel-runtime/node_modules/.bin/vercel node --env-file=.env.production.local scripts/demo-protected.js
+```
+
+This invokes authenticated `vercel curl` requests and reads employee tokens from the ignored production file. Results are saved to the ignored `.tools/cloud-demo-results.json`. Normal unprotected curl cannot bypass Vercel platform protection; changing that protection requires a deliberate access decision.
+
+Source is pushed to the private GitHub repository. The successful production deployment used the Vercel CLI; automatic GitHub-to-Vercel deployment is not linked because the Vercel GitHub connection rejected access to the private repository. Until that account connection is authorized, deploy updates from this linked checkout with the authenticated CLI.

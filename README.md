@@ -90,3 +90,5 @@ See [design decisions](docs/decisions.md) for assumptions, cost calculation and 
 ## Vercel and Neon deployment
 
 See [deployment instructions](docs/deployment.md). Cloud routes use the same chat and authorization implementation as the local server. Vercel deployments require token mode, and Neon schema initialization runs once before serving traffic.
+
+Live cloud verification also passed all ten scenarios. See [cloud deployment and test instructions](docs/deployment.md).
