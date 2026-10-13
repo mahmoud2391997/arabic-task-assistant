@@ -16,5 +16,5 @@ export const scenarios = [
 
 // The later working-hours requirement can reject T09 after Friday shifts to Saturday.
 export function scenarioExpected(scenario, now = new Date()) {
-  return scenario.id === 'T09' && schedule('بعد بكرة 13:00',now).error ? 'clarify' : scenario.expected;
+  return scenario.id === 'T09' && schedule('بعد بكرة 13:00',now).error ? 'reject' : scenario.expected;
 }

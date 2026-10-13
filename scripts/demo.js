@@ -11,7 +11,7 @@ for (const scenario of scenarios) {
     body:JSON.stringify({user_id,message}),
   });
   const result = await response.json();
-  let passed = result.action === expected;
+  let passed = (expected==='reject'?result.action_type==='rejection':expected==='clarify'?result.action_type==='inquiry':(expected==='reject'?result.action_type==='rejection':expected==='clarify'?result.action_type==='inquiry':result.action===expected));
   if (id === 'T03') passed &&= result.rescheduled === true;
   if (id === 'T05') passed &&= result.tasks?.some(t => t.assignee_id === 4 && t.description.includes('عرض السعر'));
   if (id === 'T06') passed &&= result.policy_ids?.includes(2);

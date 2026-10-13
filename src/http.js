@@ -1,10 +1,11 @@
 import http from 'node:http';
+import {classifyResponse} from './responses.js';
 import { timingSafeEqual } from 'node:crypto';
 import { AIError } from './ai.js';
 
 function send(res, status, body) {
   res.writeHead(status, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store' });
-  res.end(JSON.stringify(body));
+  res.end(JSON.stringify(classifyResponse(body)));
 }
 function tokenIdentity(req, tokens) {
   const supplied = req.headers.authorization?.replace(/^Bearer /, '') ?? '';
@@ -53,18 +54,19 @@ export function createHandler({ chat, authMode = 'demo', tokens = {}, health = a
         if (!identity) return send(res,401,{error:'Employee authentication required'});
         return send(res,200,await telegram.linkCode(identity));
       }
+      if (body && typeof body==='object' && !Array.isArray(body) && body.message === undefined) body.message=body.prompt;
       if (!body || !Number.isSafeInteger(body.user_id) || body.user_id < 1 || typeof body.message !== 'string' || !body.message.trim() || body.message.length > 4000) return send(res,400,{error:'Provide a positive integer user_id and message (1–4000 characters)'});
       if (identity && identity !== body.user_id) return send(res,403,{error:'user_id must match authenticated employee'});
       // Attachments are accepted only from the authenticated Telegram webhook.
       const result = await chat({user_id:body.user_id,message:body.message});
-      send(res,result.action === 'reject' ? 403 : 200,result);
+      send(res,result.action_type === 'rejection' || result.action === 'reject' ? 403 : 200,result);
     } catch (error) {
-      if (error instanceof AIError) return send(res,502,{action:'error',response_type:'clarification', reply:'تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'});
-      if (error.message === 'OUTSIDE_WORKING_HOURS') return send(res,400,{action:'clarify',response_type:'clarification',reply:'الموعد خارج ساعات الدوام. حدد وقتاً خلال الدوام.'});
+      if (error instanceof AIError) return send(res,502,{action:'error',action_type:'exception',response_type:'clarification', reply:'تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'});
+      if (error.message === 'OUTSIDE_WORKING_HOURS') return send(res,400,{action:'reject',action_type:'rejection',response_type:'rejection',reply:'الموعد خارج ساعات الدوام. حدد وقتاً خلال الدوام.'});
       if (error.message === 'FORBIDDEN') return send(res,403,{action:'reject',response_type:'rejection',reply:'لا تملك صلاحية تنفيذ هذا الطلب.'});
       // Do not log tokens, raw messages, connection strings, or provider error bodies.
       console.error('Request failed:', error.name);
-      send(res,500,{action:'error',response_type:'clarification',reply:'تعذر تنفيذ الطلب.'});
+      send(res,500,{action:'error',action_type:'exception',response_type:'clarification',reply:'تعذر تنفيذ الطلب.'});
     }
   };
 }

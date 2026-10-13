@@ -22,13 +22,14 @@ function commandIntent(message) {
 const dateTokens = { today:'اليوم', tomorrow:'بكرة', day_after_tomorrow:'بعد بكرة' };
 const weekdays = ['الاحد','الاثنين','الثلاثاء','الاربعاء','الخميس','الجمعة','السبت'];
 export function createChat({ store, ai, clock = () => new Date() }) {
-  const execute = async ({ user_id, message, document, history=[] }) => {
+  const execute = async ({ user_id, message, document, history=[], selectedAction }) => {
     const actor = await store.user(user_id);
     if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
     const users = await store.users();
     const now = clock();
-    const intent = validateIntent(commandIntent(message) || await ai({ message, users, now, history }));
+    const intent = validateIntent(selectedAction ? {action:selectedAction,target:'self',assignee_name:'',description:'',date_kind:'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]} : commandIntent(message) || await ai({ message, users, now, history }));
     const finish = async result => {
+      result.request_action=intent.action==='clarify' ? 'unknown' : intent.action==='policy_question' ? 'policy_answer' : intent.action;
       await store.audit(actor.id, result.action, { reason: result.action === 'reject' ? 'permission_denied' : undefined });
       return result;
     };
@@ -44,7 +45,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
       try {return await executeWorkflow({store,userId:actor.id,intent,now,document});}
       catch(error) {
         if (!(error instanceof WorkflowError)) throw error;
-        return finish({action:error.forbidden?'reject':'clarify',reply:error.message});
+        return finish({action:error.forbidden||error.rejection?'reject':'clarify',reply:error.message});
       }
     }
     let target;
@@ -78,7 +79,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     if (!date) return clarify('متى موعد المهمة؟ حدد اليوم والوقت.');
     if (!/^\d{2}:\d{2}$/.test(intent.time)) return clarify('ما وقت المهمة؟ اكتب الساعة، مثلاً 10 صباحاً.');
     const due = schedule(`${date} ${intent.time}`, now);
-    if (due.error) return clarify(due.error);
+    if (due.error) return finish({action:'reject',action_type:'rejection',reply:due.error});
     const task = await store.create(actor.id, target.id, intent.description.trim(), due.dueAt);
     return { action:'create_task', task_id:task.id, task, rescheduled:due.shifted,
       reply:`تم تسجيل المهمة لـ${target.name} بتاريخ ${due.date} الساعة ${due.time}.${due.shifted ? ' وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.' : ''}` };

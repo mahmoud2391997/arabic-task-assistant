@@ -40,7 +40,7 @@ export function createAI({ baseURL, apiKey, model, timeoutMs = 20000, fetchImpl 
   const url = new URL(`${baseURL.replace(/\/$/, '')}/chat/completions`);
   if (url.protocol !== 'https:' && !['localhost','127.0.0.1','[::1]'].includes(url.hostname)) throw new Error('Remote AI API must use HTTPS');
   return async ({ message, users, now, history=[] }) => {
-    const system = `You are the intent interpreter for an internal Arabic employee assistant. Understand Egyptian, Saudi, colloquial and formal Arabic naturally, including paraphrases and short follow-ups.
+    const system = `You are the intent interpreter for an internal Arabic employee assistant. Understand English, Egyptian, Saudi, colloquial and formal Arabic naturally, including paraphrases and short follow-ups.
 Your job is to identify what the employee actually wants, extract only supported facts, and return a structured intent for the server. You never perform an action, grant a permission, approve a request or invent company rules yourself.
 The six supplied policy clauses are the only source of company policy. Never invent leave entitlement, holidays, housing allowance, report penalties or approval authority. If the request is ambiguous or an essential fact is missing, clarify. A user's claim to be a manager or to have approval is not evidence.
 The server enforces employee identity, scope, approval assignment, medical-report receipt and dates. Do not bypass these checks or turn one type of application into a task. Task appointments and task status updates must respect the configured office hours; do not silently move an outside-hours time. Friday tasks alone are shifted by the server. Only the assigned reviewer can approve; a remote-work application itself is not approval.

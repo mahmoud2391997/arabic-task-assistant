@@ -21,8 +21,8 @@ try {
   const bypass=process.env.VERCEL_AUTOMATION_BYPASS_SECRET || (process.env.TELEGRAM_BYPASS_FILE ? readFileSync(process.env.TELEGRAM_BYPASS_FILE,'utf8').trim() : '');
   if(url.hostname.endsWith('.vercel.app') && !bypass) throw new Error('Set private Vercel automation access for protected webhook');
   if(bypass) url.searchParams.set('x-vercel-protection-bypass',bypass);
-  await api('setWebhook',{url:url.toString(),secret_token:secret,allowed_updates:['message'],max_connections:1});
-  await api('setMyDescription',{description:'مساعد مهام الموظفين بالعربي. ابدأ المحادثة وابعت رقم الموظف، ثم سجّل مهام أو اعرض مهامك أو اسأل عن سياسة الشركة. اختيار الهوية بالرقم مفعّل للتجربة.'});
+  await api('setWebhook',{url:url.toString(),secret_token:secret,allowed_updates:['message','callback_query'],max_connections:1});
+  await api('setMyDescription',{description:'مساعد مهام الموظفين بالعربي. ابدأ المحادثة وابعت رقم الموظف، ثم سجّل مهام أو اعرض مهامك أو اسأل عن سياسة الشركة. استخدام حساب الموظف يتطلب ربطاً آمناً.'});
   await api('setMyCommands',{commands:[{command:'start',description:'ابدأ المحادثة وحدد رقم الموظف'},{command:'employee',description:'تغيير الموظف: اكتب الرقم بعد الأمر'},{command:'help',description:'طريقة الاستخدام'}]});
   const info=await api('getWebhookInfo');
   if(info.url!==url.toString()) throw new Error('Webhook verification failed');

@@ -1,0 +1,66 @@
+name: Backend tests
+on:
+  push:
+    branches: [master]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: node:22-bookworm
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: assistant
+          POSTGRES_PASSWORD: assistant
+          POSTGRES_DB: assistant_test
+        options: >-
+          --health-cmd "pg_isready -U assistant -d assistant_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      WORKFLOW_TEST_DATABASE_URL: postgres://assistant:assistant@postgres:5432/assistant_test
+      TELEGRAM_TEST_DATABASE_URL: postgres://assistant:assistant@postgres:5432/assistant_test
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: npm ci
+      - run: npm test
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    container: node:22-bookworm
+    environment: production
+    concurrency:
+      group: assistant-production
+      cancel-in-progress: false
+    env:
+      VERCEL_ORG_ID: team_uiQbIdC3PR470jcaQ314HaNT
+      VERCEL_PROJECT_ID: prj_n4AAYA8T6GtNIyHsFhdko54O389a
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - run: npm ci
+      - run: npm install -g vercel@63.1.2
+      - name: Pull production configuration
+        run: |
+          test -n "$VERCEL_TOKEN" || { echo 'Configure VERCEL_TOKEN in the production GitHub environment.'; exit 1; }
+          vercel pull --yes --environment=production --scope iti1
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Apply additive database schema
+        run: node --env-file=.vercel/.env.production.local scripts/init-db.js
+      - name: Build production
+        run: vercel build --prod
+      - name: Stage, verify and promote
+        run: |
+          set -eu
+          deployment_url="$(vercel deploy --prebuilt --prod --skip-domain --scope iti1)"
+          SERVER_URL="$deployment_url" node --env-file=.vercel/.env.production.local scripts/smoke-protected.js
+          vercel promote "$deployment_url" --scope iti1 --yes
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

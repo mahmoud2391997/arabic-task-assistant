@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: assistant
       POSTGRES_PASSWORD: assistant
@@ -16,12 +17,17 @@ services:
       retries: 20
   server:
     build: .
+    restart: unless-stopped
+    command: ["node", "--watch", "src/server.js"]
+    volumes:
+      - ./src:/app/src:ro
     env_file: .env
     environment:
       DATABASE_URL: postgres://assistant:assistant@db:5432/assistant
       DATABASE_SSL: "false"
+      HOST: "0.0.0.0"
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       db:
         condition: service_healthy

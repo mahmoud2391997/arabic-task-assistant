@@ -25,7 +25,8 @@ test('T01–T10 business scenarios, with mocked AI and SQL-backed store', async 
     const results = [];
     for (const scenario of scenarios) {
       const result = await chat(scenario); results.push(result);
-      assert.equal(result.action,scenario.id === 'T09' ? 'clarify' : scenario.expected,scenario.id);
+      assert.equal(result.action_type,['T02','T04','T08','T09'].includes(scenario.id)?'rejection':scenario.id==='T10'||scenario.id==='T07'?'inquiry':scenario.id==='T03'?'postpone':'execution',scenario.id);
+      assert.equal(result.action,scenario.intent.action==='policy_question'?'policy_answer':scenario.intent.action,scenario.id);
     }
     assert.equal(results[0].task.assignee_id,4);
     assert.equal(new Date(results[0].task.due_at).toISOString(),'2026-10-15T07:00:00.000Z');
@@ -99,7 +100,7 @@ test('HTTP API handles authentication, payload validation, unavailable AI, and r
   assert.equal((await request({user_id:1,message:'hi'})).status,403);
   assert.equal((await request({user_id:3,message:''})).status,400);
   const injected=await request({user_id:3,message:scenarios[7].message});
-  assert.equal(injected.status,403); assert.equal((await injected.json()).action,'reject');
+  assert.equal(injected.status,403); assert.equal((await injected.json()).action_type,'rejection');
   assert.equal((await request({user_id:3,message:'offline'})).status,502);
   assert.equal((await fetch(url)).status,405);
   assert.equal((await fetch(url,{method:'POST',headers:{Authorization:`Bearer ${tokens['3']}`},body:'x'})).status,415);

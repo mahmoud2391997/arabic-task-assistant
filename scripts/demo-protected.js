@@ -21,7 +21,7 @@ for(const scenario of scenarios) {
   const separator=output.lastIndexOf('\r\n\r\n');
   if(separator<0) throw new Error('HTTP response header missing');
   const result=JSON.parse(output.slice(separator+4));
-  let passed=result.action===expected && status===(expected==='reject'?403:200);
+  let passed=(expected==='reject'?result.action_type==='rejection':expected==='clarify'?result.action_type==='inquiry':result.action===expected) && status===(expected==='reject'?403:200);
   if(id==='T01') {createdForKhalid=result.task_id;passed &&= result.task?.assignee_id===4;}
   if(id==='T03') passed &&= result.rescheduled===true;
   if(id==='T05') passed &&= result.tasks?.every(t=>t.assignee_id===4) && result.tasks.some(t=>t.id===createdForKhalid);

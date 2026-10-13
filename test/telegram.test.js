@@ -75,7 +75,7 @@ test('public Telegram policy answers never get employee data or access tasks',as
   } finally {await pool.end();}
 });
 
-test('demo ID flow asks for ID, resolves database role, and supports separate chats',async()=>{
+test('authorized ID flow asks for ID, resolves database role, and supports separate chats',async()=>{
   const Pool=newDb().adapters.createPg().Pool;const pool=new Pool();await initialize(pool);const replies=[];
   try {
     const telegram=createTelegram({pool,token:'123:test',secret,username:'example_bot',identityMode:'demo_id',
@@ -85,6 +85,7 @@ test('demo ID flow asks for ID, resolves database role, and supports separate ch
     assert.match(replies.at(-1).text,/رقم الموظف/);
     await telegram.receive(message(21,'999'));
     assert.match(replies.at(-1).text,/غير موجود/);
+    await pool.query('INSERT INTO telegram_access (telegram_id,employee_id) VALUES (1001,3),(1002,3)');
     await telegram.receive(message(22,'3'));
     assert.match(replies.at(-1).text,/فهد/);
     await telegram.receive(message(23,'3',1002));
@@ -104,6 +105,7 @@ test('Telegram request retries commit a single request and audit',{skip:!process
   const telegram=createTelegram({pool,token:'123:test',secret,username:'example_bot',identityMode:'demo_id',
     ai:async()=>({...base,action:'create_request',request_type:'expense',amount:650,currency:'SAR'}),
     fetchImpl:async()=>({ok:true,json:async()=>({ok:true})})});
+  await pool.query('INSERT INTO telegram_access (telegram_id,employee_id) VALUES (1001,4)');
   await telegram.receive(message(100,'4'));
   const update=message(101,'قدم طلب مصروفات 650 ريال');
   await Promise.all([telegram.receive(update),telegram.receive(update)]);
@@ -118,11 +120,12 @@ test('conversation follow-ups are retained only for the selected employee and re
   const telegram=createTelegram({pool,token:'123:test',secret,username:'example_bot',identityMode:'demo_id',
     ai:async({history})=>{seen.push(history);return {...base,action:'clarify'};},
     fetchImpl:async()=>({ok:true,json:async()=>({ok:true})})});
+  await pool.query('INSERT INTO telegram_access (telegram_id,employee_id) VALUES (1001,4),(1001,5)');
   await telegram.receive(message(200,'4'));
   await telegram.receive(message(201,'معلومات ناقصة'));
   await telegram.receive(message(202,'الرد المكمل'));
   assert.equal(seen[0].length,0);assert.equal(seen[1][0].content,'معلومات ناقصة');
-  await telegram.receive(message(203,'5'));
+  await telegram.receive(message(203,'Use User ID 5'));
   await telegram.receive(message(204,'بداية حساب آخر'));
   assert.equal(seen[2].length,0);
  } finally {await pool.end();}

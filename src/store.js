@@ -56,10 +56,24 @@ export async function initialize(pool) {
     telegram_id BIGINT PRIMARY KEY, employee_id INTEGER NOT NULL REFERENCES employees(id),
     messages JSONB NOT NULL DEFAULT '[]'
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS telegram_access (
+    telegram_id BIGINT NOT NULL, employee_id INTEGER NOT NULL REFERENCES employees(id),
+    PRIMARY KEY (telegram_id,employee_id)
+  )`);
+  // Migrate only previously verified links, never demo identity choices.
+  await pool.query(`INSERT INTO telegram_access (telegram_id,employee_id)
+    SELECT telegram_id,employee_id FROM telegram_bindings WHERE identity_mode='secure_link'
+    ON CONFLICT (telegram_id,employee_id) DO NOTHING`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS telegram_sessions (
+    telegram_id BIGINT PRIMARY KEY, active_user_id INTEGER REFERENCES employees(id),
+    awaiting_id BOOLEAN NOT NULL DEFAULT true, revision TEXT NOT NULL,
+    current_action TEXT, expires_at TIMESTAMPTZ NOT NULL
+  )`);
   await pool.query(`CREATE TABLE IF NOT EXISTS telegram_updates (
     update_id BIGINT PRIMARY KEY, reply TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await pool.query("ALTER TABLE telegram_updates ADD COLUMN IF NOT EXISTS menu JSONB");
   await pool.query("ALTER TABLE telegram_updates ADD COLUMN IF NOT EXISTS response_type TEXT NOT NULL DEFAULT 'clarification'");
 }
 

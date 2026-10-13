@@ -166,8 +166,8 @@ test('direct menu commands keep SQL permissions without accepting claimed author
  try {
   const chat=createChat({store,clock:()=>now,ai:async()=>assert.fail('Menu commands should not call provider')});
   assert.equal((await chat({user_id:4,message:'طلبات للاعتماد'})).requests.length,0);
-  assert.equal((await chat({user_id:4,message:'متابعة التقارير'})).action,'reject');
-  assert.equal((await chat({user_id:4,message:'كل المهام'})).action,'reject');
+  assert.equal((await chat({user_id:4,message:'متابعة التقارير'})).action_type,'rejection');
+  assert.equal((await chat({user_id:4,message:'كل المهام'})).action_type,'rejection');
   assert.equal((await chat({user_id:4,message:'سياسة الشركة'})).policy_ids.length,6);
  } finally {await close();}
 });

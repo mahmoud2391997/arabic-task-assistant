@@ -1,0 +1,13 @@
+# Telegram and API integration
+
+Telegram `/start` greets the person and asks for the application employee ID. A number alone never authorizes an account. An authenticated employee obtains a one-time, ten-minute link using `POST /telegram/link-code` with their existing employee bearer token. Opening that link verifies access for that Telegram account. Multiple verified accounts can be switched with “Use User ID 5” or “رقمي التعريفي 5”. The active account remains unchanged when switching fails. Legacy demo bindings are not migrated into verified access.
+
+Role-specific inline buttons invoke the same service as `/chat`. Mutation buttons first ask for missing fields. Context persists in PostgreSQL, expires after 24 hours, and resets on successful account changes. Old buttons cannot execute under a new identity. Bare numbers are IDs only while the bot is awaiting identification. The bot understands natural follow-ups through Groq; Arabic, Saudi dialect and English are supported. Telegram never prints response classification headings.
+
+`POST /chat` accepts a positive integer `user_id` and `prompt` (the existing `message` field also works). In token mode the bearer identity must match `user_id`. Each JSON response includes `action`, `action_type` and `message`. Outcomes are exactly `execution`, `rejection`, `postpone`, `inquiry` or `exception`. Existing `reply` and `response_type` fields remain as compatibility aliases. Business violations are rejected; missing details request clarification. Unsupported policy questions remain inquiries with an explicit statement that the source has no answer.
+
+Database initialization adds account grants, isolated sessions and cached menus to the existing PostgreSQL schema. Only previously verified secure links are migrated. Register the webhook with both message and callback_query updates. Existing Vercel protection remains enabled.
+
+Local development: `docker compose up -d --build`. The server watches mounted source changes; both containers restart unless explicitly stopped. This requires Docker Desktop to be running and the computer awake. Production Telegram continues to use the production webhook; local development does not replace it.
+
+GitHub Actions runs all tests against a disposable PostgreSQL database on master pushes and pull requests. The production job stages a build, applies additive schema changes, verifies protected API and Telegram configuration, then promotes it after tests pass. It requires VERCEL_TOKEN in the production GitHub environment. Git integration is not required for this CLI pipeline. Credentials belong in protected CI secrets, never Git. This document describes the configuration; actual connection status must be confirmed after setup.
