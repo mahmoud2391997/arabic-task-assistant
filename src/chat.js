@@ -27,7 +27,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
     const users = await store.users();
     const now = clock();
-    const intent = validateIntent(selectedAction ? {action:selectedAction,request_type:selectedRequestType||'',target:'self',assignee_name:'',description:'',date_kind:'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]} : commandIntent(message) || await ai({ message, users, now, history }));
+    const intent = validateIntent(selectedAction ? {action:selectedAction,request_type:selectedRequestType||'',target:'self',assignee_name:'',description:'',date_kind:selectedRequestType==='sick_leave'?'today':'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]} : commandIntent(message) || await ai({ message, users, now, history }));
     const finish = async result => {
       result.request_action=intent.action==='clarify' ? 'unknown' : intent.action==='policy_question' ? 'policy_answer' : intent.action;
       await store.audit(actor.id, result.action, { reason: result.action === 'reject' ? 'permission_denied' : undefined });

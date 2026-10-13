@@ -80,7 +80,7 @@ test('medical reports require an attachment, show missing after two days, accept
   assert.equal(a.request.status,'awaiting_report');
   assert.equal((await run(4,{action:'list_requests'},new Date('2026-10-15T20:59:00Z'))).requests[0].status,'awaiting_report');
   assert.equal((await run(4,{action:'list_requests'},new Date('2026-10-15T21:00:00Z'))).requests[0].status,'report_overdue');
-  await assert.rejects(run(4,{action:'submit_report',record_id:id}),/أرفق ملف/);
+  await assert.rejects(run(4,{action:'submit_report',record_id:id}),/أرفق التقرير/);
   const file={file_id:'test_report_reference',mime_type:'application/pdf',file_size:100};
   await assert.rejects(run(3,{action:'submit_report',record_id:id},now,file),/صلاحية/);
   const late=await run(4,{action:'submit_report',record_id:id},new Date('2026-10-16T06:00:00Z'),file);
@@ -183,5 +183,21 @@ test('task-update inquiry lists only tasks in the actor scope before asking for 
   const supervisor=await chat({user_id:2,message:'تحديث مهمة'});assert.equal(supervisor.tasks.length,1);
   const manager=await chat({user_id:1,message:'تحديث مهمة'});assert.equal(manager.tasks.length,2);
   assert.ok(manager.tasks.every(t=>t.status==='pending'));
+ }finally{await close();}
+});
+
+test('medical report accepts attachment and return date without a prior record or approval',async()=>{
+ const {pool,run,close}=await setup();const document={file_id:'report-file',file_size:1024,mime_type:'application/pdf'};
+ try {
+  await assert.rejects(run(5,{action:'submit_report'}),/أرفق التقرير/);
+  assert.equal((await pool.query('SELECT * FROM employee_requests')).rows.length,0);
+  const data={action:'submit_report',date_kind:'absolute',date_value:'2026-10-13'};
+  await assert.rejects(run(5,data),/أرفق التقرير/);
+  assert.equal((await pool.query('SELECT * FROM employee_requests')).rows.length,0);
+  const result=await run(5,data,now,document);
+  assert.equal(result.request.employee_id,5);assert.equal(result.request.approver_id,null);assert.equal(result.request.monitor_id,6);
+  assert.equal(result.request.report_deadline,'2026-10-15');assert.equal(result.request.status,'report_received');
+  await assert.rejects(run(5,data,now,document),/بالفعل/);
+  assert.equal((await pool.query('SELECT * FROM employee_requests')).rows.length,1);
  }finally{await close();}
 });

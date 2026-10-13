@@ -9,7 +9,7 @@ const welcome='أهلاً بك في مساعد المهام! 👋 أرسل رق�
 const actions=[
  ['mine','مهامي','مهامي'],['create','إنشاء مهمة','أريد إنشاء مهمة'],
  ['requests','طلباتي','طلباتي'],['new','طلب جديد','أريد تقديم طلب'],
- ['sick','تسجيل العودة من المرضية','أريد تسجيل العودة من الإجازة المرضية'],
+ ['sick','تسجيل العودة من المرضية','عدت اليوم من الإجازة المرضية'],
  ['update','تحديث حالة مهمة','أريد تحديث حالة مهمة'],['report','إرفاق تقرير طبي','أريد إرفاق تقرير طبي'],
  ['policy','سياسة الشركة','سياسة الشركة'],
  ['department','مهام القسم','مهام القسم',['supervisor']],
@@ -93,7 +93,10 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   if(!demo&&!allowed) return {reply:'صلاحية الحساب غير متاحة. '+onboarding,action_type:'rejection'};
   const previous=(await client.query('SELECT messages FROM telegram_conversations WHERE telegram_id=$1 AND employee_id=$2',[id,s.active_user_id])).rows[0]?.messages||[];
   const history=Array.isArray(previous)?previous.slice(-6):[];
-  const document=m.document||(m.photo?.length?{file_id:m.photo.at(-1).file_id,file_size:m.photo.at(-1).file_size,mime_type:'image/jpeg'}:undefined);
+  const incoming=m.document||(m.photo?.length?{file_id:m.photo.at(-1).file_id,file_size:m.photo.at(-1).file_size,mime_type:'image/jpeg'}:undefined);
+  const attachment=incoming?{file_id:incoming.file_id,file_size:incoming.file_size,mime_type:incoming.mime_type}:undefined;
+  const document=attachment;
+  if(!text&&attachment) text=s.current_action==='submit_report'?'أرفق التقرير الطبي':'أرسلت مرفقاً';
   const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType});
   const messages=[...history,{role:'user',content:text.slice(0,1200)},{role:'assistant',content:result.message.slice(0,1200)}].slice(-6);
   await client.query('INSERT INTO telegram_conversations (telegram_id,employee_id,messages) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,messages=EXCLUDED.messages',[id,s.active_user_id,JSON.stringify(messages)]);
@@ -107,7 +110,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
    const callback=update?.callback_query;
    const m=callback?{...callback.message,from:callback.from,text:''}:update?.message;
    if(!Number.isSafeInteger(update?.update_id)||update.update_id<0||!m||m.chat?.type!=='private'||!Number.isSafeInteger(m.from?.id)||m.from.id<=0||m.from.is_bot||m.chat.id!==m.from.id) return;
-   if(callback ? typeof callback.id!=='string'||typeof callback.data!=='string'||callback.data.length>64 : typeof(m.text??m.caption)!=='string'||!(m.text??m.caption).trim()||(m.text??m.caption).length>4000) return;
+   if(callback ? typeof callback.id!=='string'||typeof callback.data!=='string'||callback.data.length>64 : (!m.document&&!m.photo?.length&&(typeof(m.text??m.caption)!=='string'||!(m.text??m.caption).trim()))||(m.text??m.caption??'').length>4000) return;
    let client,result;
    try {
     client=await pool.connect();await client.query('BEGIN');

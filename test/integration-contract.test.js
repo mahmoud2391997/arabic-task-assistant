@@ -86,3 +86,31 @@ test('explicit demo mode accepts ID-only selection without creating verified gra
   await pool.query("INSERT INTO telegram_access (telegram_id,employee_id) SELECT telegram_id,employee_id FROM telegram_bindings WHERE identity_mode='secure_link' ON CONFLICT (telegram_id,employee_id) DO NOTHING");assert.equal((await pool.query('SELECT * FROM telegram_access')).rows.length,0);
  }finally{await pool.end();}
 });
+
+test('medical upload button requests only a file and reminds of dates inside the report',async()=>{
+ const f=await fixture(async()=>({...base,action:'submit_report'}));
+ try {
+  const greeting=await f.grant(5);
+  assert.ok(greeting.reply_markup.inline_keyboard.flat().some(b=>b.text==='تسجيل العودة من المرضية'));
+  const button=greeting.reply_markup.inline_keyboard.flat().find(b=>b.text==='إرفاق تقرير طبي');
+  const prompt=await f.callback(1,button.callback_data);assert.match(prompt.text,/خلال يومين كحد أقصى/);assert.doesNotMatch(prompt.text,/حدد رقم|اذكر تاريخ|ما تاريخ/);
+  await f.telegram.receive({update_id:2,message:{from:{id:700,is_bot:false},chat:{id:700,type:'private'},document:{file_id:'medical-file',file_size:512,mime_type:'application/pdf'}}});
+  const receipt=f.sent.filter(m=>m.method==='sendMessage').at(-1);assert.match(receipt.text,/تم استلام تقريرك/);
+  const row=(await f.pool.query('SELECT * FROM employee_requests')).rows[0];
+  assert.equal(row.employee_id,5);assert.equal(row.approver_id,null);assert.equal(row.monitor_id,6);assert.equal(row.request_date,null);assert.equal(row.report_deadline,null);assert.equal(row.status,'report_received');
+ }finally{await f.pool.end();}
+});
+
+test('return button records today and report upload uses that record without asking date or ID',async()=>{
+ const f=await fixture(async()=>({...base,action:'submit_report'}));
+ try {
+  const greeting=await f.grant(5);
+  const button=greeting.reply_markup.inline_keyboard.flat().find(b=>b.text==='تسجيل العودة من المرضية');
+  await f.callback(1,button.callback_data);
+  const before=(await f.pool.query('SELECT * FROM employee_requests')).rows[0];
+  assert.equal(new Date(before.request_date).toISOString().slice(0,10),'2026-10-14');assert.equal(new Date(before.report_deadline).toISOString().slice(0,10),'2026-10-16');assert.equal(before.approver_id,null);
+  await f.telegram.receive({update_id:2,message:{from:{id:700,is_bot:false},chat:{id:700,type:'private'},document:{file_id:'return-report',file_size:512,mime_type:'application/pdf'}}});
+  const rows=(await f.pool.query('SELECT * FROM employee_requests')).rows;
+  assert.equal(rows.length,1);assert.equal(rows[0].status,'report_received');assert.equal(rows[0].monitor_id,6);
+ }finally{await f.pool.end();}
+});

@@ -60,11 +60,11 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
         ? tasks.map(t=>`#${t.id} ${t.description} — ${labels[t.status]||t.status}`).join('\n')+'\nاختر رقم المهمة وأدخل الحالة الجديدة: معلقة، قيد التنفيذ، أو مكتملة. التحديث خلال يوم المهمة وقبل نهاية الدوام.'
         : 'لا توجد مهام متاحة للتحديث ضمن صلاحيات حسابك.'};
     }
-    if (['decide_request','submit_report','update_task'].includes(intent.action) && !Number.isSafeInteger(intent.record_id)) throw new WorkflowError(intent.action==='submit_report'?'حدد رقم سجل العودة من الإجازة المرضية لإرفاق التقرير به. هذا ليس طلب موافقة أو رقم مهمة.':intent.action==='update_task'?'حدد رقم المهمة المطلوب تحديثها.':'حدد رقم طلب الاعتماد.');
+    if (['decide_request','update_task'].includes(intent.action) && !Number.isSafeInteger(intent.record_id)) throw new WorkflowError(intent.action==='update_task'?'حدد رقم المهمة المطلوب تحديثها.':'حدد رقم طلب الاعتماد.');
     if(intent.action==='create_request') {
       if (intent.target !== 'self') throw new WorkflowError('طلبات الإجازة والعمل عن بعد والمصروفات تُقدّم لحسابك فقط.',false,true);
       const type=intent.request_type;
-      if(!Object.hasOwn(names,type)) throw new WorkflowError('حدد نوع الطلب: إجازة اعتيادية، عمل عن بُعد، أو مصروفات. المرضية لا تحتاج إذناً مسبقاً؛ سجّل تاريخ العودة منها ثم أرفق التقرير الطبي خلال يومين من العودة.');
+      if(!Object.hasOwn(names,type)) throw new WorkflowError('حدد نوع الطلب: إجازة اعتيادية، عمل عن بُعد، أو مصروفات. المرضية لا تحتاج إذناً مسبقاً؛ أرفق تقريراً يتضمن فترة الإجازة وتاريخ العودة خلال يومين منها.');
       await employee(client,actor.id,'FOR UPDATE');
       const today=riyadhToday(now);
       const date=type==='expense' ? null : dateFromIntent(intent,now,{allowPast:type==='sick_leave'});
@@ -88,7 +88,7 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
       await audit(client,actor.id,'create_request',{request_id:row.id,type,approver_id:reviewer?.id??null,monitor_id:monitor?.id??null});
       const request=publicRequest(row,now);
       return {action:'create_request',request,reply:type==='sick_leave'
-        ? `تم تسجيل العودة من الإجازة المرضية #${row.id}، بدون طلب موافقة مسبقة. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق مستند التقرير مع تعليق «تقرير الطلب ${row.id}».${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
+        ? `تم تسجيل العودة من الإجازة المرضية #${row.id}، بدون طلب موافقة مسبقة. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق التقرير الطبي هنا خلال يومين كحد أقصى من العودة.${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
         : `تم تقديم طلب ${names[type]} #${row.id} إلى صندوق طلبات ${reviewer.name}. الطلب بانتظار موافقته، ولم يُعتمد بعد.`};
     }
     if(intent.action==='decide_request') {
@@ -110,14 +110,33 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
       return {action:'decide_request',request:publicRequest(updated,now),reply:`الطلب #${row.id} أصبح ${statuses[intent.status]}.`};
     }
     if(intent.action==='submit_report') {
-      const row=(await client.query('SELECT * FROM employee_requests WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];
-      if(!row||row.employee_id!==actor.id||row.request_type!=='sick_leave') throw new WorkflowError('لا تملك صلاحية إرفاق تقرير لهذا الطلب.',true);
-      if(!document?.file_id||typeof document.file_id!=='string'||document.file_id.length>1024||!['application/pdf','image/jpeg','image/png'].includes(document.mime_type)||!Number.isSafeInteger(document.file_size)||document.file_size<1||document.file_size>10*1024*1024) throw new WorkflowError('أرفق ملف PDF أو صورة التقرير (حتى 10 ميجابايت) مع رقم الطلب. الرسالة وحدها لا تُعتبر تقريراً.');
+      let row;
+      if(Number.isSafeInteger(intent.record_id)) {
+        row=(await client.query('SELECT * FROM employee_requests WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];
+        if(!row||row.employee_id!==actor.id||row.request_type!=='sick_leave') throw new WorkflowError('لا تملك صلاحية إرفاق تقرير لهذا الحساب.',true);
+      } else {
+        const date=dateFromIntent(intent,now,{allowPast:true});
+
+        if(date&&date>riyadhToday(now)) throw new WorkflowError('تاريخ العودة لم يأتِ بعد. اذكر تاريخ عودتك الفعلي.',false,true);
+        await employee(client,actor.id,'FOR UPDATE');
+        const rows=date?(await client.query("SELECT * FROM employee_requests WHERE employee_id=$1 AND request_type='sick_leave' AND request_date=$2 ORDER BY id DESC FOR UPDATE",[actor.id,date])).rows:(await client.query("SELECT * FROM employee_requests WHERE employee_id=$1 AND request_type='sick_leave' AND report_received_at IS NULL AND request_date IS NOT NULL ORDER BY id DESC FOR UPDATE",[actor.id])).rows;
+        if(date&&rows.length>1) throw new WorkflowError('يوجد أكثر من سجل مرضي لنفس تاريخ العودة. تواصل مع المشرف لتحديد السجل الصحيح.');
+        row=rows.length===1?rows[0]:undefined;
+      }
+      if(!document) throw new WorkflowError('أرفق التقرير الطبي هنا. يجب إرفاقه خلال يومين كحد أقصى من العودة من الإجازة المرضية.');
+      if(!document.file_id||typeof document.file_id!=='string'||document.file_id.length>1024||!['application/pdf','image/jpeg','image/png'].includes(document.mime_type)||!Number.isSafeInteger(document.file_size)||document.file_size<1||document.file_size>10*1024*1024) throw new WorkflowError('أرفق التقرير الطبي كملف PDF أو صورة JPEG/PNG لا تتجاوز 10 ميجابايت.');
+      if(!row) {
+        const date=dateFromIntent(intent,now,{allowPast:true});
+        const monitor=await approver(client,actor,'sick_leave',null);
+        row=(await client.query(`INSERT INTO employee_requests (employee_id,request_type,request_date,status,report_deadline,created_at,monitor_id)
+          VALUES ($1,'sick_leave',$2,'awaiting_report',$3,$4,$5) RETURNING *`,[actor.id,date,date?addCalendarDays(date,2):null,now,monitor.id])).rows[0];
+        await audit(client,actor.id,'create_request',{request_id:row.id,type:'sick_leave',monitor_id:monitor.id,source:'medical_report'});
+      }
       if(row.report_received_at) throw new WorkflowError('تم تسجيل وصول التقرير لهذا الطلب بالفعل.',false,true);
-      const late=riyadhToday(now)>dateOnly(row.report_deadline);
+      const late=row.report_deadline?riyadhToday(now)>dateOnly(row.report_deadline):null;
       const updated=(await client.query('UPDATE employee_requests SET report_file_id=$1,report_received_at=$2,status=$3 WHERE id=$4 RETURNING *',[document.file_id,now,late?'report_received_late':'report_received',row.id])).rows[0];
       await audit(client,actor.id,'submit_report',{request_id:row.id,late});
-      return {action:'submit_report',request:publicRequest(updated,now),reply:`تم تسجيل وصول التقرير للطلب #${row.id}.${late?' وصل بعد المهلة؛ السياسة لا تحدد عقوبة.':''} استلام الملف لا يعني التحقق من صحة محتواه الطبي.`};
+      return {action:'submit_report',request:publicRequest(updated,now),reply:`تم استلام تقريرك الطبي${row.request_date?` عن العودة بتاريخ ${dateOnly(row.request_date)}`:""}.${late?' وصل بعد المهلة؛ السياسة لا تحدد عقوبة.':''} المشرف يتابع التقرير ويراجع فترة الإجازة وتاريخ العودة داخله. استلام الملف لا يعني التحقق من صحة محتواه الطبي.`};
     }
     if(intent.action==='update_task') {
       const row=(await client.query('SELECT * FROM tasks WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];
