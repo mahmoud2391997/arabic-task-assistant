@@ -19,6 +19,12 @@ export async function initialize(pool) {
     due_at TIMESTAMPTZ NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS task_notifications (
+    id SERIAL PRIMARY KEY, recipient_id INTEGER NOT NULL REFERENCES employees(id),
+    actor_id INTEGER NOT NULL REFERENCES employees(id), task_id INTEGER NOT NULL REFERENCES tasks(id),
+    read_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (recipient_id,task_id)
+  )`);
   await pool.query('ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ');
   await pool.query(`CREATE TABLE IF NOT EXISTS audit_log (
     id SERIAL PRIMARY KEY, actor_id INTEGER REFERENCES employees(id),
@@ -105,10 +111,24 @@ export class Store {
         VALUES ($1,$2,$3,$4) RETURNING *`, [target.id, actor.id, description, dueAt])).rows[0];
       await client.query('INSERT INTO audit_log (actor_id,action,details) VALUES ($1,$2,$3)',
         [actor.id, 'create_task', JSON.stringify({ task_id: task.id, assignee_id: target.id })]);
+      if(actor.id!==target.id&&['manager','supervisor'].includes(actor.role)) {
+        await client.query('INSERT INTO task_notifications (recipient_id,actor_id,task_id) VALUES ($1,$2,$3)',[target.id,actor.id,task.id]);
+      }
       if (!this.transactional) await client.query('COMMIT');
       return task;
     } catch (error) { if (!this.transactional) await client.query('ROLLBACK'); throw error; }
     finally { if (!this.transactional) client.release(); }
+  }
+  async consumeNotifications(actorId) {
+    const rows=(await this.pool.query(`SELECT n.id,n.task_id,e.name AS actor_name,e.role AS actor_role,t.description
+      FROM task_notifications n JOIN employees e ON e.id=n.actor_id JOIN tasks t ON t.id=n.task_id
+      WHERE n.recipient_id=$1 AND n.read_at IS NULL ORDER BY n.id`,[actorId])).rows;
+    const notices=[];
+    for(const row of rows) {
+      const changed=(await this.pool.query('UPDATE task_notifications SET read_at=CURRENT_TIMESTAMP WHERE id=$1 AND recipient_id=$2 AND read_at IS NULL RETURNING id',[row.id,actorId])).rows.length;
+      if(changed) notices.push(row);
+    }
+    return notices;
   }
   async list(actorId, targetId, all = false, departmentOnly = false) {
     const actor = await this.user(actorId);

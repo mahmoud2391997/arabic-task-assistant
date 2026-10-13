@@ -128,3 +128,17 @@ test('new-request menu has exactly three choices with type-specific inquiries an
   assert.match((await f.callback(5,menu.reply_markup.inline_keyboard.flat()[2].callback_data)).text,/قيمة المصروفات/);
  }finally{await f.pool.end();}
 });
+
+test('supervisor assignment notification appears once on employee login and stays scoped to recipient',async()=>{
+ const f=await fixture();try {
+  const store=new Store(f.pool);
+  await store.create(2,4,'مراجعة مخططات','2026-10-15T10:00:00+03:00');
+  await store.create(1,5,'مراجعة مالية','2026-10-15T10:00:00+03:00');
+  await store.create(4,4,'مهمة لنفسي','2026-10-15T11:00:00+03:00');
+  assert.equal((await f.pool.query('SELECT * FROM task_notifications')).rows.length,2);
+  const reply=await f.grant(4);assert.match(reply.text,/المشرف سارة أسند لك مهمة/);assert.match(reply.text,/مراجعة مخططات/);assert.doesNotMatch(reply.text,/مراجعة مالية/);
+  const again=await f.send(1,'Use User ID 4');assert.doesNotMatch(again.text,/إشعاراتك الجديدة/);
+  assert.equal((await store.list(4)).length,2);assert.equal((await f.pool.query('SELECT * FROM tasks')).rows.length,3);
+  const other=await f.grant(5,701);assert.match(other.text,/المدير منيرة أسند لك مهمة/);assert.doesNotMatch(other.text,/مراجعة مخططات/);
+ }finally{await f.pool.end();}
+});

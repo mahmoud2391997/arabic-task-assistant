@@ -23,6 +23,9 @@ function requestKeyboard(revision) {return {inline_keyboard:requestActions.map(a
 function keyboard(user,revision) {
  return {inline_keyboard:actions.filter(a=>!a[3]||a[3].includes(user.role)).map(a=>[{text:a[1],callback_data:`${revision}:${a[0]}`}])};
 }
+function notificationText(rows) {
+ return rows.length?'إشعاراتك الجديدة:\n'+rows.map(n=>`${n.actor_role==='manager'?'المدير':'المشرف'} ${n.actor_name} أسند لك مهمة #${n.task_id}: ${n.description}`).join('\n')+'\n\n':'';
+}
 function introduction(user) {
  return `تعرفت على حسابك، أهلاً ${user.name}! 👋\n${actions.filter(a=>!a[3]||a[3].includes(user.role)).map(a=>a[1]).join('، ')}.\nتحدث بالعربية الفصحى أو باللهجة السعودية أو بصياغتك المعتادة. إذا احتجت تفاصيل سأطلبها منك.`;
 }
@@ -55,7 +58,8 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   await client.query("INSERT INTO telegram_bindings (telegram_id,employee_id,identity_mode) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,identity_mode=EXCLUDED.identity_mode",[id,userId,demo?'demo_id':'secure_link']);
   await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);
   await new Store(client,true).audit(userId,'telegram_identity',{});
-  return {reply:introduction(user),action_type:'execution',menu:keyboard(user,revision)};
+  const notices=await new Store(client,true).consumeNotifications(userId);
+  return {reply:notificationText(notices)+introduction(user),action_type:'execution',menu:keyboard(user,revision)};
  }
  async function process(client,m,callback) {
   const id=m.from.id;let selectedAction,selectedRequestType;let text=(m.text||m.caption||'').trim();const s=await session(client,id);
@@ -100,6 +104,8 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   const document=attachment;
   if(!text&&attachment) text=s.current_action==='submit_report'?'أرفق التقرير الطبي':'أرسلت مرفقاً';
   const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType,requireLeaveRange:true});
+  const notices=await new Store(client,true).consumeNotifications(s.active_user_id);
+  result.message=notificationText(notices)+result.message;result.reply=result.message;
   const messages=[...history,{role:'user',content:text.slice(0,1200)},{role:'assistant',content:result.message.slice(0,1200)}].slice(-6);
   await client.query('INSERT INTO telegram_conversations (telegram_id,employee_id,messages) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,messages=EXCLUDED.messages',[id,s.active_user_id,JSON.stringify(messages)]);
   await client.query('UPDATE telegram_sessions SET current_action=$1,expires_at=$2 WHERE telegram_id=$3',[result.action_type==='inquiry'?result.action:null,new Date(clock().getTime()+86400000),id]);
