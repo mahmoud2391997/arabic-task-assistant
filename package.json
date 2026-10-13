@@ -1,0 +1,15 @@
+{
+  "name": "arabic-task-assistant-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": "22.x" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "test": "node --test test/*.test.js",
+    "demo": "node --env-file-if-exists=.env scripts/demo.js",
+    "db:init": "node --env-file-if-exists=.env scripts/init-db.js"
+  },
+  "dependencies": { "pg": "^8.16.3" },
+  "devDependencies": { "pg-mem": "^3.0.5" }
+}

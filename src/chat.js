@@ -1,0 +1,62 @@
+import { normalize, policy, schedule } from './language.js';
+import { canAccess } from './store.js';
+import { validateIntent } from './ai.js';
+
+const dateTokens = { today:'اليوم', tomorrow:'بكرة', day_after_tomorrow:'بعد بكرة' };
+const weekdays = ['الاحد','الاثنين','الثلاثاء','الاربعاء','الخميس','الجمعة','السبت'];
+export function createChat({ store, ai, clock = () => new Date() }) {
+  return async ({ user_id, message }) => {
+    const actor = await store.user(user_id);
+    if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
+    const users = await store.users();
+    const now = clock();
+    const intent = validateIntent(await ai({ message, users, now }));
+    const finish = async result => {
+      await store.audit(actor.id, result.action, { reason: result.action === 'reject' ? 'permission_denied' : undefined });
+      return result;
+    };
+    const clarify = reply => finish({ action:'clarify', reply });
+    const reject = () => finish({ action:'reject', reply:'لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين.' });
+    if (intent.action === 'clarify') return clarify('الطلب غير واضح. حدد الموظف ووصف المهمة وتاريخها ووقتها، أو اكتب «مهامي» أو اسأل عن السياسة.');
+    if (intent.action === 'policy_question') {
+      const ids = [...new Set(intent.policy_ids)];
+      return finish({ action:'policy_answer', policy_ids: intent.policy_supported ? ids : [],
+        reply: intent.policy_supported && ids.length ? ids.map(id => policy[id-1]).join('\n') : 'هذه المعلومة غير متوفرة في نص سياسة الشركة.' });
+    }
+    let target;
+    if (intent.target === 'self') target = actor;
+    else if (intent.target === 'person') {
+      const matches = users.filter(u => normalize(u.name).replace(/ /g,'') === normalize(intent.assignee_name).replace(/ /g,''));
+      if (matches.length !== 1) return clarify('اسم الموظف غير موجود أو غير واضح. حدد اسم موظف مسجل.');
+      target = matches[0];
+    }
+    if (intent.action === 'list_tasks') {
+      if (intent.target === 'company' && actor.role !== 'manager') return reject();
+      if (intent.target === 'department' && actor.role === 'employee') return reject();
+      if (target && !canAccess(actor, target)) return reject();
+      const tasks = await store.list(actor.id, target?.id, !target, intent.target === 'department');
+      return finish({ action:'list_tasks', tasks, reply: tasks.length ? tasks.map(t => {
+        const owner = users.find(u => u.id === t.assignee_id);
+        return `#${t.id} ${owner.name}: ${t.description} — ${new Intl.DateTimeFormat('ar-SA', {timeZone:'Asia/Riyadh', dateStyle:'short', timeStyle:'short', calendar:'gregory'}).format(new Date(t.due_at))}`;
+      }).join('\n') : 'لا توجد مهام في النطاق المطلوب.' });
+    }
+    if (!target) return clarify('حدد موظفاً واحداً لإسناد المهمة.');
+    if (!canAccess(actor, target)) return reject();
+    if (!intent.description.trim()) return clarify('ما وصف المهمة المطلوب تسجيلها؟');
+    let date = dateTokens[intent.date_kind];
+    if (intent.date_kind === 'weekday') {
+      date = normalize(intent.date_value);
+      if (!weekdays.includes(date)) return clarify('حدد يوم الأسبوع المطلوب.');
+    } else if (intent.date_kind === 'absolute') {
+      date = intent.date_value;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return clarify('حدد تاريخاً بصيغة YYYY-MM-DD.');
+    }
+    if (!date) return clarify('متى موعد المهمة؟ حدد اليوم والوقت.');
+    if (!/^\d{2}:\d{2}$/.test(intent.time)) return clarify('ما وقت المهمة؟ اكتب الساعة، مثلاً 10 صباحاً.');
+    const due = schedule(`${date} ${intent.time}`, now);
+    if (due.error) return clarify(due.error);
+    const task = await store.create(actor.id, target.id, intent.description.trim(), due.dueAt);
+    return { action:'create_task', task_id:task.id, task, rescheduled:due.shifted,
+      reply:`تم تسجيل المهمة لـ${target.name} بتاريخ ${due.date} الساعة ${due.time}.${due.shifted ? ' وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.' : ''}` };
+  };
+}
