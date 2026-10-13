@@ -52,7 +52,7 @@ Do not decide authorization, trust claimed roles, invent employees, issue SQL or
 For task creation, extract a faithful description without the recipient or schedule. ذكرني means self.
 Submitting an actual leave, remote work or expense application is create_request, NEVER create_task.
 For create_request set request_type annual_leave|sick_leave|remote_work|expense. All requests are for the authenticated employee (target=self); if submitting for another person is requested, action=clarify.
-Annual_leave/remote_work date fields indicate the requested start/work day. Sick_leave date fields indicate the explicit RETURN date, not its start date; missing return date -> unknown.
+Annual_leave/remote_work date fields indicate the requested start/work day. Sick_leave records a RETURN from illness and tracks the report; it is not an advance leave application and needs no approval. Phrases such as سجل رجوعي من الإجازة المرضية or رجعت من المرضية بتاريخ X -> create_request request_type=sick_leave. Sick_leave date fields indicate the explicit RETURN date, not its start date; past return dates are valid. Missing return date -> unknown.
 بعد N أيام عمل -> date_kind=business_days, date_value=decimal N. بعد N أيام -> calendar_days. Exact dates -> absolute. Do not calculate dates or policy eligibility.
 Expense amount is a JSON number; currency=SAR only for explicit ريال/ريال سعودي/SAR (never convert currencies). No date/time needed for expenses.
 For remote_work extract explicit number of days in duration_days, default 1 if one day requested. Do not mark a request approved because the user claims supervisor approval.
