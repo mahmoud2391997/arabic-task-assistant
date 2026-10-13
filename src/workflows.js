@@ -31,14 +31,15 @@ async function approver(client,actor,type,amount) {
 function publicRequest(row,now) {
   const result={...row};delete result.report_file_id;
   if(result.request_date) result.request_date=dateOnly(result.request_date);
+  if(result.end_date) result.end_date=dateOnly(result.end_date);
   if(result.report_deadline) result.report_deadline=dateOnly(result.report_deadline);
   if(result.status==='awaiting_report'&&result.report_deadline<riyadhToday(now)) result.status='report_overdue';
   return result;
 }
 function describe(row) {
-  return `#${row.id} ${names[row.request_type]}${row.employee_name?` — ${row.employee_name}`:''} — ${statuses[row.status]}${row.request_date ? ` — ${row.request_type==='sick_leave'?'العودة ':''}${row.request_date}` : ''}${row.amount ? ` — ${row.amount} ريال` : ''}${row.approver_id ? ` — المعتمد ${row.approver_name||`رقم ${row.approver_id}`}` : ''}${row.report_deadline ? ` — مهلة التقرير ${row.report_deadline}` : ''}`;
+  return `#${row.id} ${names[row.request_type]}${row.employee_name?` — ${row.employee_name}`:''} — ${statuses[row.status]}${row.request_date ? ` — ${row.request_type==='sick_leave'?'العودة ':''}${row.request_date}${row.end_date?` إلى ${row.end_date}`:''}` : ''}${row.amount ? ` — ${row.amount} ريال` : ''}${row.approver_id ? ` — المعتمد ${row.approver_name||`رقم ${row.approver_id}`}` : ''}${row.report_deadline ? ` — مهلة التقرير ${row.report_deadline}` : ''}`;
 }
-export async function executeWorkflow({store,userId,intent,now,document}) {
+export async function executeWorkflow({store,userId,intent,now,document,requireLeaveRange=false}) {
   return transaction(store,async client=>{
     const actor=await employee(client,userId);
     if (['list_requests','list_approvals','list_reports'].includes(intent.action)) {
@@ -64,12 +65,16 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
     if(intent.action==='create_request') {
       if (intent.target !== 'self') throw new WorkflowError('طلبات الإجازة والعمل عن بعد والمصروفات تُقدّم لحسابك فقط.',false,true);
       const type=intent.request_type;
-      if(!Object.hasOwn(names,type)) throw new WorkflowError('حدد نوع الطلب: إجازة اعتيادية، عمل عن بُعد، أو مصروفات. المرضية لا تحتاج إذناً مسبقاً؛ أرفق تقريراً يتضمن فترة الإجازة وتاريخ العودة خلال يومين منها.');
+      if(!Object.hasOwn(names,type)) throw new WorkflowError('اختر نوع الطلب: إجازة اعتيادية، عمل عن بُعد، أو مصروفات.');
       await employee(client,actor.id,'FOR UPDATE');
       const today=riyadhToday(now);
       const date=type==='expense' ? null : dateFromIntent(intent,now,{allowPast:type==='sick_leave'});
-      if(type!=='expense'&&!date) throw new WorkflowError(type==='sick_leave' ? 'المرضية لا تحتاج إذناً مسبقاً. حدد تاريخ العودة منها؛ التقرير الطبي مطلوب خلال يومين من العودة.' : 'حدد تاريخ الطلب بصيغة YYYY-MM-DD أو يوم واضح.');
+      if(type!=='expense'&&!date) throw new WorkflowError(type==='sick_leave' ? 'المرضية لا تحتاج إذناً مسبقاً. حدد تاريخ العودة منها؛ التقرير الطبي مطلوب خلال يومين من العودة.' : type==='annual_leave'&&requireLeaveRange?'من أي يوم إلى أي يوم تريد الإجازة الاعتيادية؟':type==='remote_work'?'في أي يوم تريد العمل عن بُعد؟':'حدد تاريخ الطلب بصيغة YYYY-MM-DD أو يوم واضح.');
       if(type==='annual_leave'&&businessDaysBetween(today,date)<5) throw new WorkflowError('طلب الإجازة الاعتيادية يجب تقديمه قبل 5 أيام عمل على الأقل. لم يُرسل الطلب للمشرف.',false,true);
+      const endDate=type==='annual_leave'&&intent.end_date_kind&&intent.end_date_kind!=='unknown'
+        ? dateFromIntent({...intent,date_kind:intent.end_date_kind,date_value:intent.end_date_value},now) : null;
+      if(type==='annual_leave'&&(requireLeaveRange||intent.end_date_kind&&intent.end_date_kind!=='unknown')&&!endDate) throw new WorkflowError('إلى أي يوم تريد الإجازة الاعتيادية؟');
+      if(endDate&&endDate<date) throw new WorkflowError('نهاية الإجازة يجب ألا تكون قبل بدايتها.',false,true);
       if(type==='remote_work') {
         if(intent.duration_days && intent.duration_days!==1) throw new WorkflowError('العمل عن بُعد مسموح يوم واحد في الأسبوع بموافقة المشرف.',false,true);
         if(workingHoursError(`${date}T09:00:00+03:00`)) throw new WorkflowError('حدد يوم عمل للعمل عن بُعد.',false,true);
@@ -78,13 +83,14 @@ export async function executeWorkflow({store,userId,intent,now,document}) {
         if(approved.length) throw new WorkflowError('يوجد يوم عمل عن بُعد معتمد لك في هذا الأسبوع بالفعل.',false,true);
       }
       const amount=type==='expense' ? intent.amount : null;
+      if(type==='expense'&&amount==null) throw new WorkflowError('ما قيمة المصروفات بالريال السعودي؟');
       if(type==='expense'&&(!Number.isFinite(amount)||amount<=0||amount>999999999999||Math.abs(amount*100-Math.round(amount*100))>0.00001||intent.currency!=='SAR')) throw new WorkflowError('حدد مبلغ المصروفات بالريال السعودي، برقم موجب لا يزيد عن منزلتين عشريتين.');
       const assigned=await approver(client,actor,type,amount);
       const reviewer=type==='sick_leave' ? null : assigned;
       const monitor=type==='sick_leave' ? assigned : null;
       const deadline=type==='sick_leave' ? addCalendarDays(date,2) : null;
-      const row=(await client.query(`INSERT INTO employee_requests (employee_id,approver_id,request_type,request_date,amount,description,status,report_deadline,created_at,monitor_id)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,[actor.id,reviewer?.id??null,type,date,amount,intent.description||'',type==='sick_leave'?'awaiting_report':'pending',deadline,now,monitor?.id??null])).rows[0];
+      const row=(await client.query(`INSERT INTO employee_requests (employee_id,approver_id,request_type,request_date,amount,description,status,report_deadline,created_at,monitor_id,end_date)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[actor.id,reviewer?.id??null,type,date,amount,intent.description||'',type==='sick_leave'?'awaiting_report':'pending',deadline,now,monitor?.id??null,endDate])).rows[0];
       await audit(client,actor.id,'create_request',{request_id:row.id,type,approver_id:reviewer?.id??null,monitor_id:monitor?.id??null});
       const request=publicRequest(row,now);
       return {action:'create_request',request,reply:type==='sick_leave'

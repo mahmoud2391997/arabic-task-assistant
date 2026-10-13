@@ -114,3 +114,17 @@ test('return button records today and report upload uses that record without ask
   assert.equal(rows.length,1);assert.equal(rows[0].status,'report_received');assert.equal(rows[0].monitor_id,6);
  }finally{await f.pool.end();}
 });
+
+test('new-request menu has exactly three choices with type-specific inquiries and saved annual range',async()=>{
+ const f=await fixture(async()=>({...base,action:'create_request',request_type:'annual_leave',date_kind:'absolute',date_value:'2026-10-20',end_date_kind:'absolute',end_date_value:'2026-10-22'}));
+ try {
+  const greeting=await f.grant(5),buttons=greeting.reply_markup.inline_keyboard.flat();
+  const menu=await f.callback(1,buttons.find(b=>b.text==='طلب جديد').callback_data);
+  assert.deepEqual(menu.reply_markup.inline_keyboard.flat().map(b=>b.text),['إجازة اعتيادية','عمل عن بُعد','مصروفات']);
+  const annual=menu.reply_markup.inline_keyboard.flat()[0];assert.match((await f.callback(2,annual.callback_data)).text,/من أي يوم إلى أي يوم/);
+  const created=await f.send(3,'من 2026-10-20 إلى 2026-10-22');assert.match(created.text,/بانتظار/);
+  const row=(await f.pool.query('SELECT * FROM employee_requests')).rows[0];assert.equal(new Date(row.end_date).toISOString().slice(0,10),'2026-10-22');assert.equal(row.approver_id,6);
+  assert.match((await f.callback(4,menu.reply_markup.inline_keyboard.flat()[1].callback_data)).text,/في أي يوم/);
+  assert.match((await f.callback(5,menu.reply_markup.inline_keyboard.flat()[2].callback_data)).text,/قيمة المصروفات/);
+ }finally{await f.pool.end();}
+});

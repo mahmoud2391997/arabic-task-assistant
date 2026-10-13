@@ -18,6 +18,8 @@ const actions=[
  ['decision','اعتماد أو رفض طلب','أريد اتخاذ قرار بشأن طلب',['supervisor','manager']],
  ['reports','متابعة التقارير الطبية','متابعة التقارير',['supervisor']],
 ];
+const requestActions=[['annual','إجازة اعتيادية','أريد تقديم طلب إجازة اعتيادية'],['remote','عمل عن بُعد','أريد تقديم طلب عمل عن بعد'],['expense','مصروفات','أريد تقديم طلب مصروفات']];
+function requestKeyboard(revision) {return {inline_keyboard:requestActions.map(a=>[{text:a[1],callback_data:`${revision}:${a[0]}`}])};}
 function keyboard(user,revision) {
  return {inline_keyboard:actions.filter(a=>!a[3]||a[3].includes(user.role)).map(a=>[{text:a[1],callback_data:`${revision}:${a[0]}`}])};
 }
@@ -77,9 +79,9 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   if(callback) {
    const [revision,key]=callback.data?.split(':')||[];
    const actor=s.active_user_id ? await new Store(client,true).user(s.active_user_id) : null;
-   const selected=actions.find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
+   const selected=[...actions,...requestActions].find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
    if(s.awaiting_id||!actor||revision!==s.revision||!selected) return {reply:'هذا الزر قديم أو غير متاح لحسابك. أرسل رقم الموظف أو ابدأ المحادثة مجدداً.'};
-   text=selected[2];selectedAction={create:'create_task',new:'create_request',sick:'create_request',update:'update_task',report:'submit_report',decision:'decide_request'}[key];selectedRequestType=key==='sick'?'sick_leave':undefined;
+   text=selected[2];selectedAction={create:'create_task',new:'create_request',annual:'create_request',remote:'create_request',expense:'create_request',sick:'create_request',update:'update_task',report:'submit_report',decision:'decide_request'}[key];selectedRequestType={sick:'sick_leave',annual:'annual_leave',remote:'remote_work',expense:'expense'}[key];
   }
   if(!s.active_user_id||s.awaiting_id) {
    // Public policy remains available without disclosing employees or tasks.
@@ -97,11 +99,11 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   const attachment=incoming?{file_id:incoming.file_id,file_size:incoming.file_size,mime_type:incoming.mime_type}:undefined;
   const document=attachment;
   if(!text&&attachment) text=s.current_action==='submit_report'?'أرفق التقرير الطبي':'أرسلت مرفقاً';
-  const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType});
+  const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType,requireLeaveRange:true});
   const messages=[...history,{role:'user',content:text.slice(0,1200)},{role:'assistant',content:result.message.slice(0,1200)}].slice(-6);
   await client.query('INSERT INTO telegram_conversations (telegram_id,employee_id,messages) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,messages=EXCLUDED.messages',[id,s.active_user_id,JSON.stringify(messages)]);
   await client.query('UPDATE telegram_sessions SET current_action=$1,expires_at=$2 WHERE telegram_id=$3',[result.action_type==='inquiry'?result.action:null,new Date(clock().getTime()+86400000),id]);
-  const actor=await new Store(client,true).user(s.active_user_id);return {...result,menu:keyboard(actor,s.revision)};
+  const actor=await new Store(client,true).user(s.active_user_id);return {...result,menu:result.action==='create_request'&&result.action_type==='inquiry'&&!result.request_type?requestKeyboard(s.revision):keyboard(actor,s.revision)};
  }
  return {
   authorize(value) {if(typeof value!=='string') return false;const a=Buffer.from(value),b=Buffer.from(secret);return a.length===b.length&&timingSafeEqual(a,b);},

@@ -22,13 +22,14 @@ function commandIntent(message) {
 const dateTokens = { today:'اليوم', tomorrow:'بكرة', day_after_tomorrow:'بعد بكرة' };
 const weekdays = ['الاحد','الاثنين','الثلاثاء','الاربعاء','الخميس','الجمعة','السبت'];
 export function createChat({ store, ai, clock = () => new Date() }) {
-  const execute = async ({ user_id, message, document, history=[], selectedAction, selectedRequestType }) => {
+  const execute = async ({ user_id, message, document, history=[], selectedAction, selectedRequestType, requireLeaveRange=false }) => {
     const actor = await store.user(user_id);
     if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
     const users = await store.users();
     const now = clock();
     const intent = validateIntent(selectedAction ? {action:selectedAction,request_type:selectedRequestType||'',target:'self',assignee_name:'',description:'',date_kind:selectedRequestType==='sick_leave'?'today':'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]} : commandIntent(message) || await ai({ message, users, now, history }));
     const finish = async result => {
+      result.request_type=intent.request_type;
       result.request_action=intent.action==='clarify' ? 'unknown' : intent.action==='policy_question' ? 'policy_answer' : intent.action;
       await store.audit(actor.id, result.action, { reason: result.action === 'reject' ? 'permission_denied' : undefined });
       return result;
@@ -42,7 +43,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
         reply: intent.policy_supported && ids.length ? ids.map(id => policy[id-1]).join('\n') : 'هذه المعلومة غير متوفرة في نص سياسة الشركة.' });
     }
     if (['create_request','list_requests','list_approvals','list_reports','decide_request','submit_report','update_task'].includes(intent.action)) {
-      try {return await executeWorkflow({store,userId:actor.id,intent,now,document});}
+      try {return await executeWorkflow({store,userId:actor.id,intent,now,document,requireLeaveRange});}
       catch(error) {
         if (!(error instanceof WorkflowError)) throw error;
         return finish({action:error.forbidden||error.rejection?'reject':'clarify',reply:error.message});

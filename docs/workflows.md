@@ -42,3 +42,5 @@ TELEGRAM_TEST_DATABASE_URL=postgresql://assistant:assistant@localhost:5433/assis
 These integration tests use isolated temporary schemas. Keep the separate `TEST_DATABASE_URL` option pointed only at a disposable database; the legacy task tests recreate tables when that option is set. Docker startup remains `docker compose up --build` after creating the ignored `.env` file.
 
 Telegram asks for the employee ID first, rejects an unknown ID, and introduces the recognized employee by name with their available capabilities. Thereafter replies are labeled execution, rejection, execution with rescheduling, or clarification/apology. Missing input and information absent from policy use clarification. The chat API exposes the same categories in `response_type` while preserving its action identifiers.
+
+Telegram’s طلب جديد menu offers exactly three choices: annual leave (start and end dates), remote work (one date), and expenses (amount in SAR). Annual-leave end dates are persisted and shown in request inboxes. The conversational flow asks for both dates; existing API clients with only a start date remain compatible.
