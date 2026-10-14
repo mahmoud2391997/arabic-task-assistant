@@ -1,7 +1,7 @@
 {
   "measured_at": "2026-10-14",
   "model": "qwen/qwen3.8-27b",
-  "scope": "isolated clean-install evaluation",
+  "scope": "clean-install evaluation after task-hours decision; original scenario expectations",
   "scenarios": [
     {
       "id": "T01",
@@ -19,7 +19,7 @@
           "description": "مراجعة عرض السعر",
           "due_at": "2026-10-15T07:00:00.000Z",
           "status": "pending",
-          "created_at": "2026-10-14T05:46:29.120Z",
+          "created_at": "2026-10-14T06:08:00.253Z",
           "updated_at": null
         },
         "rescheduled": false
@@ -51,7 +51,7 @@
           "description": "أرسل التقرير",
           "due_at": "2026-10-17T06:00:00.000Z",
           "status": "pending",
-          "created_at": "2026-10-14T05:46:31.611Z",
+          "created_at": "2026-10-14T06:08:02.873Z",
           "updated_at": null
         },
         "rescheduled": true
@@ -83,7 +83,7 @@
             "description": "مراجعة عرض السعر",
             "due_at": "2026-10-15T07:00:00.000Z",
             "status": "pending",
-            "created_at": "2026-10-14T05:46:29.120Z",
+            "created_at": "2026-10-14T06:08:00.253Z",
             "updated_at": null
           }
         ],
@@ -135,11 +135,23 @@
     {
       "id": "T09",
       "passed": true,
-      "http_status": 403,
+      "http_status": 200,
       "result": {
         "action": "create_task",
-        "action_type": "rejection",
-        "message": "وافق الموعد يوم الجمعة، وبعد ترحيله إلى السبت: الموعد خارج ساعات دوام السبت. اختر وقتاً من 08:00 صباحاً إلى ما قبل 12:00 ظهراً."
+        "action_type": "postpone",
+        "message": "تم تسجيل المهمة لـعبدالرحمن بتاريخ 2026-10-17 الساعة 13:00. وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.",
+        "task_id": 3,
+        "task": {
+          "id": 3,
+          "assignee_id": 6,
+          "created_by": 1,
+          "description": "اجتماع مع المالية",
+          "due_at": "2026-10-17T10:00:00.000Z",
+          "status": "pending",
+          "created_at": "2026-10-14T06:10:07.995Z",
+          "updated_at": null
+        },
+        "rescheduled": true
       }
     },
     {
@@ -155,11 +167,11 @@
   ],
   "usage": {
     "calls": 10,
-    "average_input_tokens": 2402.2,
+    "average_input_tokens": 2419.2,
     "average_output_tokens": 105,
-    "input_tokens": 24022,
+    "input_tokens": 24192,
     "output_tokens": 1050,
-    "sample_cost_usd": 0.023418,
-    "monthly_60000_messages_usd": 140.51
+    "sample_cost_usd": 0.023554,
+    "monthly_60000_messages_usd": 141.32
   }
 }

@@ -68,7 +68,6 @@ export function createHandler({ chat, authMode = 'demo', tokens = {}, health = a
         }
         return send(res,502,{action:'error',action_type:'exception',reply:'تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'});
       }
-      if (error.message === 'OUTSIDE_WORKING_HOURS') return send(res,400,{action:'reject',action_type:'rejection',response_type:'rejection',reply:'الموعد خارج ساعات الدوام. حدد وقتاً خلال الدوام.'});
       if (error.message === 'FORBIDDEN') return send(res,403,{action:'reject',response_type:'rejection',reply:'لا تملك صلاحية تنفيذ هذا الطلب.'});
       // Do not log tokens, raw messages, connection strings, or provider error bodies.
       console.error('Request failed:', error.name);

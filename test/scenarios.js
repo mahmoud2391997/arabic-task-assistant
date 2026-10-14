@@ -1,4 +1,3 @@
-import { schedule } from '../src/language.js';
 export const base = { action:'clarify', target:'self', assignee_name:'', description:'', date_kind:'unknown', date_value:'', time:'', policy_supported:false, policy_ids:[] };
 const intent = overrides => ({...base,...overrides});
 export const scenarios = [
@@ -14,7 +13,6 @@ export const scenarios = [
   {id:'T10',user_id:2,message:'سجّل مهمة لأحمد بكرة',expected:'clarify',intent:intent({action:'create_task',target:'person',assignee_name:'أحمد',date_kind:'tomorrow'})},
 ];
 
-// The later working-hours requirement can reject T09 after Friday shifts to Saturday.
-export function scenarioExpected(scenario, now = new Date()) {
-  return scenario.id === 'T09' && schedule('بعد بكرة 13:00',now).error ? 'reject' : scenario.expected;
+export function scenarioExpected(scenario) {
+  return scenario.expected;
 }

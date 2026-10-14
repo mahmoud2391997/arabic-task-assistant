@@ -9,8 +9,8 @@ Current rules: [قواعد النظام المعتمدة](business-rules.md). Ve
 | Arabic intent understanding | Groq structured schema; formal, Saudi and Egyptian Arabic. Ambiguity requests clarification; model accuracy is measured, not guaranteed for every phrase. |
 | Task creation and viewing | SQL-backed employee/department/company permissions; ID, description, scheduled time, state and assigning person persist. |
 | Task editing | Description and/or schedule; no backdating new schedules; audit before/after values. |
-| Task status | Due-day only, after scheduled time, during actual working hours. |
-| Dates | Riyadh dates, relative days, next weekdays, Friday shift and Saturday validation. |
+| Task status | Due-day only, at/after scheduled time, even outside office hours. |
+| Dates | Riyadh dates, relative days, next weekdays, Friday shift to Saturday at the same hour, including afternoon. |
 | Policy answers | Exact selected policy clauses, explicit unknown answer, user-approved amendments included. |
 | Annual leave | Five business-day lead time and supervisor approval; Telegram asks date range. |
 | Remote work | One approved working day per Saturday–Friday week; approval concurrency safe. |

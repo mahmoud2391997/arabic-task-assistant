@@ -12,7 +12,7 @@ The source policy is six clauses. Later user-authorized business exceptions are 
 
 ## Calendar and time choices
 
-Riyadh business time is independent of the host/client timezone. Relative dates are resolved in code. Friday shifts to Saturday at the same hour and is revalidated against Saturday's shorter day. Unqualified 1–7 uses the afternoon work context; explicit morning/24-hour values are respected. New task schedules cannot be backdated; status changes require the due day, an elapsed due time and actual working hours. Remote-work weeks start Saturday. No invented public holidays, leave balances or medical-report penalties.
+Riyadh business time is independent of the host/client timezone. Relative dates are resolved in code. Friday shifts to Saturday at the same hour, including outside Saturday's company working hours, as explicitly decided to align T09 with the original exercise. Unqualified 1–7 uses the afternoon work context; explicit morning/24-hour values are respected. New task schedules cannot be backdated; status changes require the due day and an elapsed due time, with no office-hours restriction. Remote-work weeks start Saturday. No invented public holidays, leave balances or medical-report penalties.
 
 ## Cost model — checked 14 October 2026
 
@@ -32,7 +32,7 @@ These are scenario assumptions, not measured invoices. The prompt now contains d
 
 A planning allowance of $20–50/month for hosting, database, monitoring/backups is **a budget assumption, not a supplier quote**. The middle scenario with 20% inference contingency plus this allowance is roughly $222–252/month at 30 operating days. Taxes, currency conversion, account subscriptions, scaling, storage/egress and human operational effort are excluded. Do not purchase or upgrade a plan from this document.
 
-Optional AI_USAGE_LOG=true logs numeric prompt/completion token counts only. It never logs employee names, messages, keys or connection strings. The clean-install assessment measured 10 successful calls: average 2,402.2 input and 105 output tokens. At the cited prices, this is $0.023418 for the sample and about $140.51/month if extrapolated to 60,000 AI calls, before hosting/contingency. This small stateless sample cannot establish production conversation costs. Callback logging failures cannot affect successful business execution. Limits such as requests/day and tokens/minute must be checked in the actual account before committing to 2,000 daily messages.
+Optional AI_USAGE_LOG=true logs numeric prompt/completion token counts only. It never logs employee names, messages, keys or connection strings. The clean-install assessment measured 10 successful calls: average 2,419.2 input and 105 output tokens. At the cited prices, this is $0.023554 for the sample and about $141.32/month if extrapolated to 60,000 AI calls, before hosting/contingency. This small stateless sample cannot establish production conversation costs. Callback logging failures cannot affect successful business execution. Limits such as requests/day and tokens/minute must be checked in the actual account before committing to 2,000 daily messages.
 
 ## Provider failures
 

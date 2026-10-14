@@ -1,9 +1,18 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {demoRequest} from '../scripts/demo-client.js';
+import {demoRequest,scenarioPassed} from '../scripts/demo-client.js';
 import {AIError,createAI} from '../src/ai.js';
 import {createHandler} from '../src/http.js';
-import {base} from './scenarios.js';
+import {base,scenarios} from './scenarios.js';
+
+test('T09 live validator requires the correct shifted date, hour and assignee, not merely create_task',()=>{
+ const scenario=scenarios.find(s=>s.id==='T09'),now=new Date('2026-10-14T09:00:00Z');
+ const result={action:'create_task',action_type:'postpone',rescheduled:true,task:{assignee_id:6,due_at:'2026-10-17T10:00:00.000Z'}};
+ assert.equal(scenarioPassed(scenario,'create_task',200,result,undefined,now),true);
+ assert.equal(scenarioPassed(scenario,'create_task',200,{...result,task:{...result.task,due_at:'2026-10-17T09:00:00.000Z'}},undefined,now),false);
+ assert.equal(scenarioPassed(scenario,'create_task',200,{...result,task:{...result.task,assignee_id:4}},undefined,now),false);
+ assert.equal(scenarioPassed(scenario,'create_task',403,{action:'create_task',action_type:'rejection'},undefined,now),false);
+});
 
 test('demo retries provider rate limits before execution, but never successful mutations or other failures',async()=>{
   const calls=[],waits=[];let n=0;
