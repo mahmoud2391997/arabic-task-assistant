@@ -11,7 +11,8 @@
     "test": "node --test test/*.test.js",
     "demo": "node --env-file-if-exists=.env scripts/demo.js",
     "db:init": "node --env-file-if-exists=.env scripts/init-db.js",
-    "db:reset": "node --env-file-if-exists=.env scripts/reset-db.js"
+    "db:reset": "node --env-file-if-exists=.env scripts/reset-db.js",
+    "check:docs": "node scripts/check-docs.js"
   },
   "dependencies": {
     "@vercel/functions": "3.9.11",
