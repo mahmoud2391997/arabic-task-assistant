@@ -1,0 +1,325 @@
+{
+  "info": {
+    "name": "اختبارات الصلاحيات — المدير والمشرفون والموظف",
+    "description": "شغّل بالترتيب على قاعدة محلية تجريبية. الخطوتان 02 و03 تنشئان مهمتين فعليتين عبر Groq وتحتاجان الحصة المتاحة. بقية الأوامر مباشرة وتختبر صلاحيات التطبيق وSQL دون Groq. ليست إثباتاً لتفعيل PostgreSQL RLS. لا توجد مفاتيح أو بيانات إنتاج.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "project_task_id",
+      "value": ""
+    },
+    {
+      "key": "finance_task_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 — فحص الخادم",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"الخادم وقاعدة البيانات جاهزان\",()=>{pm.response.to.have.status(200);pm.expect(pm.response.json().status).to.eql(\"ok\");});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — مهمة للمشاريع: سارة تسند لفهد",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 2,\n  \"message\": \"سجل مهمة لفهد بكرة الساعة 10 مراجعة تقرير اختبار صلاحيات Postman\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r=pm.response.json();",
+              "pm.test(\"تسجيل المهمة للموظف الصحيح\",()=>{pm.response.to.have.status(200);pm.expect(r.action_type).to.eql(\"execution\");pm.expect(r.task.assignee_id).to.eql(3);});",
+              "if(pm.response.code===200 && r.task && r.task.assignee_id===3) pm.collectionVariables.set(\"project_task_id\",String(r.task.id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — مهمة للمالية: منيرة تسند لنورة",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 1,\n  \"message\": \"سجل مهمة لنورة بكرة الساعة 10 مراجعة مصروفات اختبار صلاحيات Postman\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r=pm.response.json();",
+              "pm.test(\"تسجيل المهمة للموظف الصحيح\",()=>{pm.response.to.have.status(200);pm.expect(r.action_type).to.eql(\"execution\");pm.expect(r.task.assignee_id).to.eql(5);});",
+              "if(pm.response.code===200 && r.task && r.task.assignee_id===5) pm.collectionVariables.set(\"finance_task_id\",String(r.task.id));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — منيرة ترى جميع المهام",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 1,\n  \"message\": \"كل المهام\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r=pm.response.json();",
+              "pm.test(\"عرض ناجح\",()=>{pm.response.to.have.status(200);pm.expect(r.action).to.eql(\"list_tasks\");pm.expect(r.action_type).to.eql(\"execution\");pm.expect(r.tasks).to.be.an(\"array\");});",
+              "pm.test(\"كل مهمة لها اسم مسند إليه\",()=>{for(const t of r.tasks){pm.expect(t.assignee_name).to.be.a(\"string\").and.not.empty;pm.expect(r.message).to.include(\"المسند إليه: \"+t.assignee_name);}});",
+              "pm.test(\"المهمة التجريبية موجودة\",()=>{const id=pm.collectionVariables.get(\"project_task_id\");pm.expect(id,\"شغّل خطوة إنشاء المهمة أولاً\").to.not.eql(\"\");pm.expect(id).to.not.eql(undefined);pm.expect(r.tasks.some(t=>String(t.id)===id)).to.eql(true);});",
+              "pm.test(\"المهمة التجريبية موجودة\",()=>{const id=pm.collectionVariables.get(\"finance_task_id\");pm.expect(id,\"شغّل خطوة إنشاء المهمة أولاً\").to.not.eql(\"\");pm.expect(id).to.not.eql(undefined);pm.expect(r.tasks.some(t=>String(t.id)===id)).to.eql(true);});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — سارة ترى المشاريع فقط",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 2,\n  \"message\": \"مهام القسم\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r=pm.response.json();",
+              "pm.test(\"عرض ناجح\",()=>{pm.response.to.have.status(200);pm.expect(r.action).to.eql(\"list_tasks\");pm.expect(r.action_type).to.eql(\"execution\");pm.expect(r.tasks).to.be.an(\"array\");});",
+              "pm.test(\"كل مهمة لها اسم مسند إليه\",()=>{for(const t of r.tasks){pm.expect(t.assignee_name).to.be.a(\"string\").and.not.empty;pm.expect(r.message).to.include(\"المسند إليه: \"+t.assignee_name);}});",
+              "pm.test(\"لا مهام من خارج المشاريع\",()=>{for(const t of r.tasks)pm.expect([2,3,4]).to.include(t.assignee_id);});",
+              "pm.test(\"المهمة التجريبية موجودة\",()=>{const id=pm.collectionVariables.get(\"project_task_id\");pm.expect(id,\"شغّل خطوة إنشاء المهمة أولاً\").to.not.eql(\"\");pm.expect(id).to.not.eql(undefined);pm.expect(r.tasks.some(t=>String(t.id)===id)).to.eql(true);});",
+              "pm.test(\"لا تسرب لمهمة المالية\",()=>pm.expect(r.tasks.some(t=>String(t.id)===pm.collectionVariables.get(\"finance_task_id\"))).to.eql(false));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 — عبدالرحمن يرى المالية فقط",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 6,\n  \"message\": \"مهام القسم\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r=pm.response.json();",
+              "pm.test(\"عرض ناجح\",()=>{pm.response.to.have.status(200);pm.expect(r.action).to.eql(\"list_tasks\");pm.expect(r.action_type).to.eql(\"execution\");pm.expect(r.tasks).to.be.an(\"array\");});",
+              "pm.test(\"كل مهمة لها اسم مسند إليه\",()=>{for(const t of r.tasks){pm.expect(t.assignee_name).to.be.a(\"string\").and.not.empty;pm.expect(r.message).to.include(\"المسند إليه: \"+t.assignee_name);}});",
+              "pm.test(\"لا مهام من خارج المالية\",()=>{for(const t of r.tasks)pm.expect([5,6]).to.include(t.assignee_id);});",
+              "pm.test(\"المهمة التجريبية موجودة\",()=>{const id=pm.collectionVariables.get(\"finance_task_id\");pm.expect(id,\"شغّل خطوة إنشاء المهمة أولاً\").to.not.eql(\"\");pm.expect(id).to.not.eql(undefined);pm.expect(r.tasks.some(t=>String(t.id)===id)).to.eql(true);});",
+              "pm.test(\"لا تسرب لمهمة المشاريع\",()=>pm.expect(r.tasks.some(t=>String(t.id)===pm.collectionVariables.get(\"project_task_id\"))).to.eql(false));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 — فهد يرى مهامه فقط",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 3,\n  \"message\": \"مهامي\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r=pm.response.json();",
+              "pm.test(\"عرض ناجح\",()=>{pm.response.to.have.status(200);pm.expect(r.action).to.eql(\"list_tasks\");pm.expect(r.action_type).to.eql(\"execution\");pm.expect(r.tasks).to.be.an(\"array\");});",
+              "pm.test(\"كل مهمة لها اسم مسند إليه\",()=>{for(const t of r.tasks){pm.expect(t.assignee_name).to.be.a(\"string\").and.not.empty;pm.expect(r.message).to.include(\"المسند إليه: \"+t.assignee_name);}});",
+              "pm.test(\"كل الصفوف تخص فهد\",()=>{for(const t of r.tasks)pm.expect(t.assignee_id).to.eql(3);});",
+              "pm.test(\"المهمة التجريبية موجودة\",()=>{const id=pm.collectionVariables.get(\"project_task_id\");pm.expect(id,\"شغّل خطوة إنشاء المهمة أولاً\").to.not.eql(\"\");pm.expect(id).to.not.eql(undefined);pm.expect(r.tasks.some(t=>String(t.id)===id)).to.eql(true);});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 — رفض عرض الشركة رغم ادعاء دور المدير",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 3,\n  \"message\": \"كل المهام\",\n  \"role\": \"manager\",\n  \"department\": \"الإدارة\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r=pm.response.json();",
+              "pm.test(\"رفض صلاحية الموظف رغم role مزيف\",()=>{pm.response.to.have.status(403);pm.expect(r.action_type).to.eql(\"rejection\");pm.expect(r.tasks).to.eql(undefined);});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 — رفض مهام القسم للموظف",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{base_url}}/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"user_id\": 3,\n  \"message\": \"مهام القسم\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const r=pm.response.json();",
+              "pm.test(\"الموظف لا يعرض القسم\",()=>{pm.response.to.have.status(403);pm.expect(r.action_type).to.eql(\"rejection\");pm.expect(r.tasks).to.eql(undefined);});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
