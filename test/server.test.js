@@ -6,7 +6,7 @@ import { initialize, Store } from '../src/store.js';
 import { createChat } from '../src/chat.js';
 import { createServer } from '../src/http.js';
 import { createAI, AIError } from '../src/ai.js';
-import { schedule, riyadhToday, policy, workingHoursError, workTime } from '../src/language.js';
+import { schedule, riyadhToday, policy, workingHoursError, workTime, hasTaskDescription } from '../src/language.js';
 import { scenarios, base } from './scenarios.js';
 
 async function setup() {
@@ -178,3 +178,12 @@ test('chat exposes four response categories and classifies unknown policy as cla
  assert.equal(workTime('11:00','بكرة الساعة حداشر'),'11:00');
  assert.ok(workingHoursError('2026-10-17T15:00:00+03:00'));
  });
+
+test('task schedule alone never becomes a work description or persisted task',async()=>{
+ for(const text of ['', 'تتعمل الساعة ثلاثة','النهاردة الساعة ٣','schedule task at 3']) assert.equal(hasTaskDescription(text),false,text);
+ assert.equal(hasTaskDescription('عمل تقرير شامل'),true);
+ const {pool,store}=await setup();try {
+ const chat=createChat({store,clock:()=>now,ai:async()=>({...base,action:'create_task',description:'تتعمل الساعة ثلاثة',date_kind:'today',time:'15:00'})});
+ const result=await chat({user_id:3,message:'سجل مهمة النهاردة الساعة ثلاثة'});assert.equal(result.action_type,'inquiry');assert.match(result.message,/وصف المهمة/);assert.equal((await store.list(3)).length,0);
+ }finally{await pool.end();}
+});

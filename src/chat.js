@@ -1,6 +1,6 @@
 import {classifyResponse,withNotifications} from './responses.js';
 import {executeWorkflow,WorkflowError} from './workflows.js';
-import { normalize, policy, schedule, workTime } from './language.js';
+import { normalize, policy, schedule, workTime, hasTaskDescription } from './language.js';
 import { canAccess } from './store.js';
 import { validateIntent } from './ai.js';
 
@@ -76,7 +76,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     }
     if (!target) return clarify('حدد موظفاً واحداً لإسناد المهمة.');
     if (!canAccess(actor, target)) return reject();
-    if (!intent.description.trim()) return clarify('ما وصف المهمة المطلوب تسجيلها؟');
+    if (!hasTaskDescription(intent.description)) return clarify('ما وصف المهمة المطلوب تسجيلها؟');
     let date = dateTokens[intent.date_kind];
     if (intent.date_kind === 'weekday') {
       date = normalize(intent.date_value);

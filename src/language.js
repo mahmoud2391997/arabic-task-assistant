@@ -14,6 +14,14 @@ export function workTime(time, message) {
   return match?`${Number(match[1])+12}:${match[2]}`:time;
 }
 
+export function hasTaskDescription(description) {
+  const text=normalize(description).replace(/\d{4}-\d{2}-\d{2}|\d+(?::\d+)?/g,' ')
+    .replace(/\b(?:today|tomorrow|at|am|pm|task|create|schedule)\b/gi,' ')
+    .replace(/(?:النهاردة|النهارده|الساعة|اليوم|غدا|بكرة|صباحا|صباح|عصرا|العصر|ظهرا|الظهر|مساء|تتعمل|تعمل|انشاء|تسجيل|نسجل|سجل|مهمة|مهمه|واحدة|واحد|اثنين|ثلاثة|ثلاثه|اربعة|اربعه|خمسة|خمسه|ستة|سته|سبعة|سبعه|ثمانية|تسعة|عشرة|حداشر|نصف|ونص)/g,' ')
+    .replace(/[^\p{L}]+/gu,' ').trim();
+  return Boolean(text);
+}
+
 export const policy = [
   'الدوام من الأحد إلى الخميس من 8:00 صباحاً حتى 4:00 عصراً، والسبت دوام نصفي حتى 12:00 ظهراً.',
   'طلب الإجازة الاعتيادية قبل 5 أيام عمل على الأقل، ويعتمده المشرف المباشر.',
