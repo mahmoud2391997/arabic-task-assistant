@@ -30,7 +30,7 @@ test('rate limits expose a bounded retry header and do not run business mutation
 });
 
 test('usage metrics contain numeric token counts only and never break valid intent extraction',async()=>{
- let metrics;const options={baseURL:'https://api.groq.com/openai/v1',apiKey:'test',model:'qwen/qwen3.8-27b',fetchImpl:async()=>({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(base)}}],usage:{prompt_tokens:1400,completion_tokens:90}})})};
+ let metrics;const options={baseURL:'https://generativelanguage.googleapis.com/v1beta/openai',apiKey:'test',model:'gemini-3.1-flash-lite',fetchImpl:async()=>({ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(base)}}],usage:{prompt_tokens:1400,completion_tokens:90}})})};
  await createAI({...options,onUsage:value=>{metrics=value;}})({message:'private',users:[],now:new Date()});assert.deepEqual(metrics,{input_tokens:1400,output_tokens:90});
  assert.equal((await createAI({...options,onUsage:()=>{throw new Error('metric failure');}})({message:'private',users:[],now:new Date()})).action,'clarify');
 });

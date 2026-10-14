@@ -8,9 +8,9 @@ Create a Neon PostgreSQL project and use its pooled connection string (`-pooler`
 | --- | --- |
 | `DATABASE_URL` | Neon pooled PostgreSQL URL |
 | `DATABASE_SSL` | `true` |
-| `GROQ_API_KEY` | Your existing Groq key |
-| `AI_BASE_URL` | `https://api.groq.com/openai/v1` |
-| `AI_MODEL` | `qwen/qwen3.8-27b` |
+| `GEMINI_API_KEY` | Your existing Gemini key |
+| `AI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| `AI_MODEL` | `gemini-3.1-flash-lite` |
 | `AUTH_MODE` | `token` |
 | `AUTH_TOKENS_JSON` | JSON mapping employee IDs to distinct random tokens of at least 32 characters |
 
@@ -36,7 +36,7 @@ References: [Vercel Node.js functions](https://vercel.com/docs/functions/runtime
 
 ## Verified deployed environment
 
-On October 13, 2026, the production deployment at https://arabic-task-assistant-iti1.vercel.app passed all ten live scenarios against Groq and the newly provisioned Neon free-plan database. The runtime uses token authentication and verified PostgreSQL TLS. The existing Vercel protection setting also requires a Vercel login for requests to the generated domain.
+On October 13, 2026, the production deployment at https://arabic-task-assistant-iti1.vercel.app passed all ten live scenarios against Gemini and the newly provisioned Neon free-plan database. The runtime uses token authentication and verified PostgreSQL TLS. The existing Vercel protection setting also requires a Vercel login for requests to the generated domain.
 
 For authenticated testing without exposing token values:
 

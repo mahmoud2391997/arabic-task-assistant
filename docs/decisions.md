@@ -4,7 +4,7 @@ Rules: [قواعد النظام المعتمدة](business-rules.md). Delivered/
 
 ## Architecture and trust boundary
 
-Node.js 22, native HTTP/fetch, PostgreSQL through pg, and Vercel connection lifecycle support through @vercel/functions. Groq's configured Qwen model uses strict JSON Schema, with non-thinking mode for intent extraction. Alternate compatible models use JSON object mode and the same field validation. No hidden offline parser pretends to be a live AI result.
+Node.js 22, native HTTP/fetch, PostgreSQL through pg, and Vercel connection lifecycle support through @vercel/functions. Gemini's configured Gemini model uses strict JSON Schema, with low reasoning effort for intent extraction. Gemini uses its documented OpenAI-compatible endpoint with JSON Schema and server-side field validation. No other provider endpoint is accepted by runtime configuration. No hidden offline parser pretends to be a live AI result.
 
 The model proposes fields and policy IDs. It cannot issue SQL, grant roles, decide approvals or override the server clock. The application checks authenticated identity, database roles, task scope and policy rules; repository reads/creates enforce scope again. Mutations and audit commit together. Telegram update receipts preserve retry idempotency and per-chat sessions; the HTTP API remains stateless and has no client idempotency key.
 
@@ -16,23 +16,11 @@ Riyadh business time is independent of the host/client timezone. Relative dates 
 
 ## Cost model — checked 14 October 2026
 
-Groq documents qwen/qwen3.8-27b at **$0.80 per million input tokens and $4.00 per million output tokens**. This is a preview model, so verify price/availability when budgeting. Sources: [model and pricing](https://console.groq.com/docs/model/qwen/qwen3.8-27b), [rate limits](https://console.groq.com/docs/rate-limits). Account-specific quotas and bills take precedence; free quotas are not an unlimited service commitment.
+Gemini 3.1 Flash-Lite is the configured model. Standard paid-tier pricing is $0.25 per million input tokens and $1.50 per million output tokens including thinking. Sources: [Google pricing](https://ai.google.dev/gemini-api/docs/pricing), [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits). Free-tier access is quota-limited; do not assume it covers production traffic.
 
-For 100 employees × 20 messages per employee per day × 30 days = **60,000 messages/month**, let f be the fraction actually sent to AI and I/O the average billed input/output tokens including prompt and conversation history:
+100 employees × 20 messages/day × 30 days = 60,000 messages/month. With a planning assumption of 2,500 input and 500 billed output/thinking tokens, every message using AI costs $82.50/month. At 22 days it is $60.50. A 20% inference reserve plus a non-quoted $20–50 infrastructure allowance gives $119–149/month at 30 days. Taxes, account subscriptions and human operations are excluded. These are assumptions, not measured Gemini bills; historical provider measurements are not reused as Gemini evidence.
 
-`monthly AI USD = 60000 × f × (I × 0.80 + O × 4.00) / 1000000`
-
-| Assumption | Input/output tokens | AI cost/month, f=1 |
-|---|---:|---:|
-| Small stateless prompt | 900 / 150 | $79.20 |
-| Larger current-prompt planning envelope | 2500 / 200 | $168.00 |
-| Longer conversation envelope | 4000 / 300 | $264.00 |
-
-These are scenario assumptions, not measured invoices. The prompt now contains detailed policies, schema and examples, so the old 900-token estimate is not a safe single-point budget. For 22 operating days the same rows are $58.08, $123.20 and $193.60. If half of interactions use deterministic buttons/read commands (f=0.5), inference halves; measure the actual mix. Add a 20% inference contingency for billed invalid-output attempts and changes in input size. Rate-limited requests should not create business writes; retries can increase waiting time, and successful billed attempts must be included.
-
-A planning allowance of $20–50/month for hosting, database, monitoring/backups is **a budget assumption, not a supplier quote**. The middle scenario with 20% inference contingency plus this allowance is roughly $222–252/month at 30 operating days. Taxes, currency conversion, account subscriptions, scaling, storage/egress and human operational effort are excluded. Do not purchase or upgrade a plan from this document.
-
-Optional AI_USAGE_LOG=true logs numeric prompt/completion token counts only. It never logs employee names, messages, keys or connection strings. The clean-install assessment measured 10 successful calls: average 2,419.2 input and 105 output tokens. At the cited prices, this is $0.023554 for the sample and about $141.32/month if extrapolated to 60,000 AI calls, before hosting/contingency. This small stateless sample cannot establish production conversation costs. Callback logging failures cannot affect successful business execution. Limits such as requests/day and tokens/minute must be checked in the actual account before committing to 2,000 daily messages.
+Record billed input/output counts including thinking, actual AI interaction fraction and successful retries. Numeric logging must not include prompts, identities or keys. Account-specific rate and daily limits remain authoritative.
 
 ## Provider failures
 

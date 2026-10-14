@@ -42,7 +42,7 @@ const REQUIRED_FILES = [
 ];
 
 const README_SECTIONS = [
-  'API', 'Docker', 'AUTH_MODE', 'GROQ_API_KEY', 'db:reset', 'npm test',
+  'API', 'Docker', 'AUTH_MODE', 'GEMINI_API_KEY', 'db:reset', 'npm test',
   'deployment.md', 'workflows.md', 'business-rules.md',
 ];
 
@@ -105,7 +105,7 @@ console.log('\n[5] .env.example security');
 const envExample = readFileSync(join(root, '.env.example'), 'utf8');
 const secretLines = envExample.split('\n')
   .filter(l => !l.startsWith('#'))
-  .filter(l => /GROQ_API_KEY|AUTH_TOKENS_JSON|TELEGRAM_BOT_TOKEN|TELEGRAM_WEBHOOK_SECRET/.test(l))
+  .filter(l => /GEMINI_API_KEY|AUTH_TOKENS_JSON|TELEGRAM_BOT_TOKEN|TELEGRAM_WEBHOOK_SECRET/.test(l))
   .filter(l => {
     const val = l.split('=').slice(1).join('=').trim();
     return val && val !== '{}' && val.length > 0 && !/^(false|true|0)$/.test(val);

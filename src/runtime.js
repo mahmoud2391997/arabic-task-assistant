@@ -21,10 +21,16 @@ export function databaseConfig(env = process.env) {
   };
 }
 
+
+export function aiConfig(env = process.env) {
+  const baseURL=env.AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai';
+  if(new URL(baseURL).hostname!=='generativelanguage.googleapis.com') throw new Error('Only Gemini API is supported');
+  return {baseURL,apiKey:env.GEMINI_API_KEY,model:env.AI_MODEL || 'gemini-3.1-flash-lite'};
+}
+
 export function createRuntime(env = process.env) {
   if (env.VERCEL && env.AUTH_MODE !== 'token') throw new Error('Set AUTH_MODE=token for Vercel deployment');
-  const ai = createAI({baseURL:env.AI_BASE_URL || 'https://api.groq.com/openai/v1',
-    apiKey:env.GROQ_API_KEY || env.AI_API_KEY, model:env.AI_MODEL || 'qwen/qwen3.8-27b',
+  const ai = createAI({...aiConfig(env),
     onUsage:env.AI_USAGE_LOG==='true' ? counts=>console.log(JSON.stringify({event:'ai_usage',...counts})) : undefined});
   const pool = new pg.Pool(databaseConfig(env));
   if (env.VERCEL) attachDatabasePool(pool);

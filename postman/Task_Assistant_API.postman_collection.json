@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "task-assistant-api-collection",
 		"name": "Task Assistant API",
-		"description": "API collection for Arabic Task Assistant - Node.js + Groq + PostgreSQL",
+		"description": "API collection for Arabic Task Assistant - Node.js + Gemini + PostgreSQL",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [

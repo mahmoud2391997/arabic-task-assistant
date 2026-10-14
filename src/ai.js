@@ -42,7 +42,7 @@ export const intentSchema={type:'object',additionalProperties:false,properties:{
 intentSchema.required=Object.keys(intentSchema.properties);
 
 export function createAI({ baseURL, apiKey, model, timeoutMs = 20000, fetchImpl = fetch, onUsage }) {
-  if (!baseURL || !apiKey || !model) throw new Error('Set GROQ_API_KEY (or AI_API_KEY), AI_BASE_URL and AI_MODEL in .env');
+  if (!baseURL || !apiKey || !model) throw new Error('Set the provider key (GEMINI_API_KEY), AI_BASE_URL and AI_MODEL in .env');
   const url = new URL(`${baseURL.replace(/\/$/, '')}/chat/completions`);
   if (url.protocol !== 'https:' && !['localhost','127.0.0.1','[::1]'].includes(url.hostname)) throw new Error('Remote AI API must use HTTPS');
   return async ({ message, users, now, history=[] }) => {
@@ -78,6 +78,7 @@ Questions ABOUT these policies remain policy_question. Do not invent leave balan
 Preserve an unknown recipient's name for the server to ask clarification; never map أحمد to خالد.
 Understand natural Arabic/Egyptian/Saudi paraphrases without requiring exact commands. وريني مهامي, وريني اللي عليا, ايه اللي عليا, عندي ايه اعمله, شغلي المطلوب -> list_tasks target=self. Requests about pending approval such as فيه حاجة مستنية موافقتي or وريني طلبات الناس اللي هاعتمدها -> list_approvals. فين الطلبات اللي قدمتها -> list_requests. متابعة التقارير الطبية المتأخرة -> list_reports.
 For list requests: مهامي means self; all company tasks means company; department tasks means department.
+For weekday dates, date_value MUST be exactly one of الأحد، الاثنين، الثلاثاء، الأربعاء، الخميس، الجمعة، السبت, with no qualifiers or time. الجمعة الجاي -> date_kind=weekday date_value=الجمعة. Never use Friday or الجمعة الجاي as the weekday value.
 For dates: بكرة -> tomorrow; بعد بكرة -> day_after_tomorrow; weekday -> date_value a weekday in Arabic; absolute -> date_value YYYY-MM-DD. Do NOT calculate dates or move Friday.
 For work task times without an explicit morning/evening period, infer the usual daytime clock: hours 1 through 7 mean 13:00 through 19:00, hours 8 through 11 mean morning, and 12 means noon. اليوم الساعة ٣ -> today at 15:00; no clarification needed. Explicit صباحا/الفجر/am overrides this: 3 صباحا -> 03:00, allowed if the appointment is not in the past. Explicit zero-padded clock 03:00 remains 03:00. Never change an explicit time to make it eligible. 1 الظهر -> 13:00. العصر alone -> 16:00. Missing date/time -> unknown/empty string. Multiple/ambiguous dates, times or recipients -> clarify.
 For policy: policy_supported=true ONLY if the entire question can be directly answered by the exact clauses below. Select one or more relevant policy_ids. Unknown housing allowance, annual leave balance, penalties etc -> false and []. The server returns only source clauses.
@@ -88,9 +89,9 @@ Policy clauses: ${JSON.stringify(policy.map((text,i) => ({id:i+1,text})))}.`;
       const response = await fetchImpl(url, {
         method: 'POST', signal: AbortSignal.timeout(timeoutMs),
         headers: { 'Content-Type':'application/json', Authorization:`Bearer ${apiKey}` },
-        body: JSON.stringify({ model, temperature:0, max_tokens:600,
-          ...(url.hostname==='api.groq.com'&&model==='qwen/qwen3.8-27b'?{reasoning_effort:'none'}:{}),
-          response_format:url.hostname==='api.groq.com' && ['qwen/qwen3.8-27b','openai/gpt-oss-20b','openai/gpt-oss-120b'].includes(model)
+        body: JSON.stringify({ model, temperature:0, max_tokens:url.hostname==='generativelanguage.googleapis.com'?2048:600,
+          ...(url.hostname==='generativelanguage.googleapis.com'?{reasoning_effort:model.startsWith('gemini-2.5-')&&!model.includes('pro')?'none':'low'}:{}),
+          response_format:url.hostname==='generativelanguage.googleapis.com'
             ? {type:'json_schema',json_schema:{name:'employee_intent',strict:true,schema:intentSchema}} : {type:'json_object'},
           messages:[{ role:'system', content:system },...history.filter(m=>['user','assistant'].includes(m?.role)&&typeof m.content==='string').slice(-6).map(m=>({role:m.role,content:m.content.slice(0,1200)})),{ role:'user', content:message }] }),
       });

@@ -72,15 +72,15 @@ test('date resolver uses Riyadh, rolls Friday, validates dates, ambiguity and ho
   assert.ok(schedule('بكرة',now).error);
 });
 
-test('Groq adapter sends JSON mode and validates output; provider failures fail closed', async () => {
+test('Gemini adapter sends JSON mode and validates output; provider failures fail closed', async () => {
   let captured;
-  const options = {baseURL:'https://api.groq.com/openai/v1',apiKey:'test-secret',model:'qwen/qwen3.8-27b'};
+  const options = {baseURL:'https://generativelanguage.googleapis.com/v1beta/openai',apiKey:'test-secret',model:'gemini-3.1-flash-lite'};
   const ai = createAI({...options,fetchImpl:async (url,request) => {
     captured={url:String(url),request};
     return {ok:true,json:async () => ({choices:[{message:{content:JSON.stringify(scenarios[0].intent)}}]})};
   }});
   assert.equal((await ai({message:scenarios[0].message,users:[],now})).action,'create_task');
-  assert.equal(captured.url,'https://api.groq.com/openai/v1/chat/completions');
+  assert.equal(captured.url,'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions');
   assert.equal(JSON.parse(captured.request.body).response_format.type,'json_schema');
   for (const response of [ {ok:false,status:429}, {ok:true,json:async()=>({choices:[{message:{content:'not json'}}]})}, {ok:true,json:async()=>({choices:[{message:{content:'{"action":"drop_database"}'}}]})} ]) {
     await assert.rejects(createAI({...options,fetchImpl:async()=>response})({message:'hi',users:[],now}),AIError);
@@ -244,4 +244,12 @@ test('explicit all-employee tasks resolve by role and retain group in missing-fi
   assert.equal(missing.action_type,'inquiry');assert.match(missing.message,/نورة/);assert.match(missing.message,/فهد/);
   assert.equal((await pool.query('SELECT * FROM tasks')).rows.length,9);
  }finally{await pool.end();}
+});
+
+test('Gemini configuration requires its own key and rejects other provider endpoints',async()=>{
+ const {aiConfig}=await import('../src/runtime.js');
+ assert.equal(aiConfig({GEMINI_API_KEY:'gemini-secret'}).apiKey,'gemini-secret');
+ assert.equal(aiConfig({}).apiKey,undefined);
+ assert.equal(aiConfig({}).model,'gemini-3.1-flash-lite');
+ assert.throws(()=>aiConfig({AI_BASE_URL:'https://other.example/v1'}),/Only Gemini/);
 });

@@ -1,7 +1,8 @@
 {
   "measured_at": "2026-10-14",
-  "model": "qwen/qwen3.8-27b",
-  "scope": "clean-install evaluation after task-hours decision; original scenario expectations",
+  "provider": "Gemini API",
+  "model": "gemini-3.1-flash-lite",
+  "scope": "Live local HTTP + Gemini + existing PostgreSQL evaluation database; original ten scenarios, no clock override",
   "scenarios": [
     {
       "id": "T01",
@@ -11,15 +12,16 @@
         "action": "create_task",
         "action_type": "execution",
         "message": "تم تسجيل المهمة لـخالد بتاريخ 2026-10-15 الساعة 10:00.",
-        "task_id": 1,
+        "reply": "تم تسجيل المهمة لـخالد بتاريخ 2026-10-15 الساعة 10:00.",
+        "task_id": 5,
         "task": {
-          "id": 1,
+          "id": 5,
           "assignee_id": 4,
           "created_by": 2,
-          "description": "مراجعة عرض السعر",
+          "description": "يراجع عرض السعر",
           "due_at": "2026-10-15T07:00:00.000Z",
           "status": "pending",
-          "created_at": "2026-10-14T06:08:00.253Z",
+          "created_at": "2026-10-14T10:43:18.830Z",
           "updated_at": null
         },
         "rescheduled": false
@@ -32,7 +34,8 @@
       "result": {
         "action": "create_task",
         "action_type": "rejection",
-        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
+        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين.",
+        "reply": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
       }
     },
     {
@@ -43,15 +46,16 @@
         "action": "create_task",
         "action_type": "postpone",
         "message": "تم تسجيل المهمة لـفهد بتاريخ 2026-10-17 الساعة 09:00. وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.",
-        "task_id": 2,
+        "reply": "تم تسجيل المهمة لـفهد بتاريخ 2026-10-17 الساعة 09:00. وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.",
+        "task_id": 6,
         "task": {
-          "id": 2,
+          "id": 6,
           "assignee_id": 3,
           "created_by": 3,
           "description": "أرسل التقرير",
           "due_at": "2026-10-17T06:00:00.000Z",
           "status": "pending",
-          "created_at": "2026-10-14T06:08:02.873Z",
+          "created_at": "2026-10-14T10:43:23.617Z",
           "updated_at": null
         },
         "rescheduled": true
@@ -64,7 +68,8 @@
       "result": {
         "action": "create_task",
         "action_type": "rejection",
-        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
+        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين.",
+        "reply": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
       }
     },
     {
@@ -74,26 +79,39 @@
       "result": {
         "action": "list_tasks",
         "action_type": "execution",
-        "message": "إشعاراتك الجديدة:\nالمشرف سارة أسند لك مهمة #1: مراجعة عرض السعر\n\n#1 خالد: مراجعة عرض السعر — ١٥‏/١٠‏/٢٠٢٦، ١٠:٠٠ ص",
+        "message": "إشعاراتك الجديدة:\nالمشرف سارة أسند لك مهمة #5: يراجع عرض السعر\n\n#3 يراجع عرض السعر\nالمسند إليه: خالد\nالموعد: ١٥‏/١٠‏/٢٠٢٦، ١٠:٠٠ ص\n#5 يراجع عرض السعر\nالمسند إليه: خالد\nالموعد: ١٥‏/١٠‏/٢٠٢٦، ١٠:٠٠ ص",
+        "reply": "إشعاراتك الجديدة:\nالمشرف سارة أسند لك مهمة #5: يراجع عرض السعر\n\n#3 يراجع عرض السعر\nالمسند إليه: خالد\nالموعد: ١٥‏/١٠‏/٢٠٢٦، ١٠:٠٠ ص\n#5 يراجع عرض السعر\nالمسند إليه: خالد\nالموعد: ١٥‏/١٠‏/٢٠٢٦، ١٠:٠٠ ص",
         "tasks": [
           {
-            "id": 1,
+            "id": 3,
             "assignee_id": 4,
             "created_by": 2,
-            "description": "مراجعة عرض السعر",
+            "description": "يراجع عرض السعر",
             "due_at": "2026-10-15T07:00:00.000Z",
             "status": "pending",
-            "created_at": "2026-10-14T06:08:00.253Z",
-            "updated_at": null
+            "created_at": "2026-10-14T10:41:58.387Z",
+            "updated_at": null,
+            "assignee_name": "خالد"
+          },
+          {
+            "id": 5,
+            "assignee_id": 4,
+            "created_by": 2,
+            "description": "يراجع عرض السعر",
+            "due_at": "2026-10-15T07:00:00.000Z",
+            "status": "pending",
+            "created_at": "2026-10-14T10:43:18.830Z",
+            "updated_at": null,
+            "assignee_name": "خالد"
           }
         ],
         "notifications": [
           {
-            "id": 1,
-            "task_id": 1,
+            "id": 5,
+            "task_id": 5,
             "actor_name": "سارة",
             "actor_role": "supervisor",
-            "description": "مراجعة عرض السعر"
+            "description": "يراجع عرض السعر"
           }
         ]
       }
@@ -106,6 +124,7 @@
         "action": "policy_answer",
         "action_type": "execution",
         "message": "طلب الإجازة الاعتيادية قبل 5 أيام عمل على الأقل، ويعتمده المشرف المباشر.",
+        "reply": "طلب الإجازة الاعتيادية قبل 5 أيام عمل على الأقل، ويعتمده المشرف المباشر.",
         "policy_ids": [
           2
         ]
@@ -119,6 +138,7 @@
         "action": "policy_answer",
         "action_type": "inquiry",
         "message": "هذه المعلومة غير متوفرة في نص سياسة الشركة.",
+        "reply": "هذه المعلومة غير متوفرة في نص سياسة الشركة.",
         "policy_ids": []
       }
     },
@@ -129,7 +149,8 @@
       "result": {
         "action": "list_tasks",
         "action_type": "rejection",
-        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
+        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين.",
+        "reply": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
       }
     },
     {
@@ -140,15 +161,16 @@
         "action": "create_task",
         "action_type": "postpone",
         "message": "تم تسجيل المهمة لـعبدالرحمن بتاريخ 2026-10-17 الساعة 13:00. وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.",
-        "task_id": 3,
+        "reply": "تم تسجيل المهمة لـعبدالرحمن بتاريخ 2026-10-17 الساعة 13:00. وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.",
+        "task_id": 7,
         "task": {
-          "id": 3,
+          "id": 7,
           "assignee_id": 6,
           "created_by": 1,
           "description": "اجتماع مع المالية",
           "due_at": "2026-10-17T10:00:00.000Z",
           "status": "pending",
-          "created_at": "2026-10-14T06:10:07.995Z",
+          "created_at": "2026-10-14T10:43:39.564Z",
           "updated_at": null
         },
         "rescheduled": true
@@ -161,17 +183,9 @@
       "result": {
         "action": "create_task",
         "action_type": "inquiry",
-        "message": "اسم الموظف غير موجود أو غير واضح. حدد اسم موظف مسجل."
+        "message": "اسم الموظف غير موجود أو غير واضح. حدد اسم موظف مسجل.",
+        "reply": "اسم الموظف غير موجود أو غير واضح. حدد اسم موظف مسجل."
       }
     }
-  ],
-  "usage": {
-    "calls": 10,
-    "average_input_tokens": 2419.2,
-    "average_output_tokens": 105,
-    "input_tokens": 24192,
-    "output_tokens": 1050,
-    "sample_cost_usd": 0.023554,
-    "monthly_60000_messages_usd": 141.32
-  }
+  ]
 }

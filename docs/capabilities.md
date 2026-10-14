@@ -6,7 +6,7 @@ Current rules: [قواعد النظام المعتمدة](business-rules.md). Ve
 
 | Capability | Implementation |
 |---|---|
-| Arabic intent understanding | Groq structured schema; formal, Saudi and Egyptian Arabic verified across all ten evaluation scenarios. Ambiguous input requests clarification rather than guessing. |
+| Arabic intent understanding | Gemini structured schema; formal, Saudi and Egyptian Arabic verified across all ten evaluation scenarios. Ambiguous input requests clarification rather than guessing. |
 | Task creation and viewing | SQL-backed employee/department/company permissions; ID, description, scheduled time, state and assigning person persist. |
 | Task editing | Description and/or schedule; no backdating new schedules; audit before/after values. |
 | Task status | Daily before the current working day closes, including before due time and on later days. |
@@ -23,11 +23,11 @@ Current rules: [قواعد النظام المعتمدة](business-rules.md). Ve
 
 ## Monthly planning
 
-Cost formula and pricing sources: [design decisions](decisions.md). The 10-scenario sample measured 2,419.2 average input and 105 output tokens per AI call. At published Groq rates ($0.80/$4.00 per million), 60,000 monthly messages cost approximately $141/month before hosting and contingency.
+Cost formula and official pricing sources: [design decisions](decisions.md). The Gemini budget assumes 2,500 input and 500 output/thinking tokens per call: $82.50/month for 60,000 calls before hosting/reserve. This is a planning assumption, not a measured bill.
 
 ## Delivery status
 
-**53/56 tests pass** with the default `npm test` (0 failures; 3 skipped tests require a separate real PostgreSQL instance). **56/56 pass** with `WORKFLOW_TEST_DATABASE_URL` and `TELEGRAM_TEST_DATABASE_URL` set. All ten scenarios passed live against Groq and Neon on 14 October 2026. `npm run check:docs` reports zero problems across all documentation, links, scripts and configuration.
+**54/57 tests pass** with the default `npm test` (0 failures; 3 skipped tests require a separate real PostgreSQL instance). **57/57 pass** with `WORKFLOW_TEST_DATABASE_URL` and `TELEGRAM_TEST_DATABASE_URL` set. All ten scenarios passed live against Gemini and local PostgreSQL on 14 October 2026. `npm run check:docs` reports zero problems across all documentation, links, scripts and configuration.
 
 ## One additional week
 
