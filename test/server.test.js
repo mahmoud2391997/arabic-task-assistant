@@ -230,3 +230,18 @@ test('multi-assignee creation validates all names and scopes before saving, dedu
   names=['فهد','نورة'];const manager=await chat({user_id:1,message:'لفهد ونورة'});assert.equal(manager.tasks.length,2);
  }finally{await pool.end();}
 });
+
+test('explicit all-employee tasks resolve by role and retain group in missing-field clarification',async()=>{
+ const {pool,store}=await setup();try {
+  let description='حضور اجتماع';
+  const chat=createChat({store,clock:()=>now,ai:async()=>({...base,action:'create_task',target:'company',description,date_kind:'day_after_tomorrow',time:'13:00'})});
+  const manager=await chat({user_id:1,message:'أريد عمل مهمة لكل الموظفين لحضور اجتماع بعد غد الساعة ١'});
+  assert.equal(manager.tasks.length,6);assert.equal(manager.action_type,'postpone');
+  const supervisor=await chat({user_id:2,message:'مهمة لكل الموظفين'});
+  assert.deepEqual(supervisor.tasks.map(t=>t.assignee_id),[2,3,4]);
+  const denied=await chat({user_id:3,message:'مهمة لكل الموظفين'});assert.equal(denied.action_type,'rejection');
+  description='';const missing=await chat({user_id:1,message:'مهمة لكل الموظفين'});
+  assert.equal(missing.action_type,'inquiry');assert.match(missing.message,/نورة/);assert.match(missing.message,/فهد/);
+  assert.equal((await pool.query('SELECT * FROM tasks')).rows.length,9);
+ }finally{await pool.end();}
+});

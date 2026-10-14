@@ -68,6 +68,12 @@ export function createChat({ store, ai, clock = () => new Date() }) {
       }
       target=recipients[0];
     }
+    if(intent.action==='create_task'&&!recipients.length&&['company','department'].includes(intent.target)) {
+      if(actor.role==='employee') return reject();
+      recipients=intent.target==='company'&&actor.role==='manager'?users:users.filter(person=>person.department===actor.department);
+      target=recipients[0];
+    }
+    const groupHint=recipients.length>1?` المهمة مطلوبة لـ${recipients.map(person=>person.name).join('، ')}؛ سيظل الإسناد لهم جميعاً.`:'';
     if (!recipients.length && intent.target === 'self') target = actor;
     else if (!recipients.length && intent.target === 'person') {
       const matches = users.filter(u => normalize(u.name).replace(/ /g,'') === normalize(intent.assignee_name).replace(/ /g,''));
@@ -87,7 +93,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     }
     if (!target) return clarify('حدد موظفاً واحداً لإسناد المهمة.');
     if (!canAccess(actor, target)||recipients.some(person=>!canAccess(actor,person))) return reject();
-    if (!hasTaskDescription(intent.description)) return clarify('ما وصف المهمة المطلوب تسجيلها؟');
+    if (!hasTaskDescription(intent.description)) return clarify('ما وصف المهمة المطلوب تسجيلها؟'+groupHint);
     let date = dateTokens[intent.date_kind];
     if (intent.date_kind === 'weekday') {
       date = normalize(intent.date_value);
@@ -96,8 +102,8 @@ export function createChat({ store, ai, clock = () => new Date() }) {
       date = intent.date_value;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return clarify('حدد تاريخاً بصيغة YYYY-MM-DD.');
     }
-    if (!date) return clarify('متى موعد المهمة؟ حدد اليوم والوقت.');
-    if (!/^\d{2}:\d{2}$/.test(intent.time)) return clarify('ما وقت المهمة؟ اكتب الساعة، مثلاً 10 صباحاً.');
+    if (!date) return clarify('متى موعد المهمة؟ حدد اليوم والوقت.'+groupHint);
+    if (!/^\d{2}:\d{2}$/.test(intent.time)) return clarify('ما وقت المهمة؟ اكتب الساعة، مثلاً 10 صباحاً.'+groupHint);
     const due = schedule(`${date} ${workTime(intent.time,message)}`, now);
     if (!due.error&&new Date(due.dueAt)<now) return finish({action:'reject',action_type:'rejection',reply:'موعد المهمة لا يجوز أن يكون قبل الوقت الحالي. اختر موعداً قادماً.'});
     if (due.error) return finish({action:'reject',action_type:'rejection',reply:due.error});
