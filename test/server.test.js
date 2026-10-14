@@ -6,7 +6,7 @@ import { initialize, Store } from '../src/store.js';
 import { createChat } from '../src/chat.js';
 import { createServer } from '../src/http.js';
 import { createAI, AIError } from '../src/ai.js';
-import { schedule, riyadhToday, policy, workingHoursError } from '../src/language.js';
+import { schedule, riyadhToday, policy, workingHoursError, workTime } from '../src/language.js';
 import { scenarios, base } from './scenarios.js';
 
 async function setup() {
@@ -170,3 +170,11 @@ test('chat exposes four response categories and classifies unknown policy as cla
   assert.equal((await call(3,{action:'policy_question',policy_supported:false})).response_type,'clarification');
  } finally {await pool.end();}
 });
+
+ test('unqualified work hours infer afternoon while explicit early hours stay outside work',()=>{
+ assert.equal(workTime('03:00','اليوم الساعة ٣'),'15:00');
+ assert.equal(workTime('03:30','اليوم الساعة ثلاثة ونصف'),'15:30');
+ for(const message of ['اليوم الساعة ٣ صباحا','اليوم الساعة 03:00','today 3 am']) assert.equal(workTime('03:00',message),'03:00');
+ assert.equal(workTime('11:00','بكرة الساعة حداشر'),'11:00');
+ assert.ok(workingHoursError('2026-10-17T15:00:00+03:00'));
+ });

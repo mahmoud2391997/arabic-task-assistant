@@ -1,6 +1,6 @@
 import {classifyResponse,withNotifications} from './responses.js';
 import {executeWorkflow,WorkflowError} from './workflows.js';
-import { normalize, policy, schedule } from './language.js';
+import { normalize, policy, schedule, workTime } from './language.js';
 import { canAccess } from './store.js';
 import { validateIntent } from './ai.js';
 
@@ -87,7 +87,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     }
     if (!date) return clarify('متى موعد المهمة؟ حدد اليوم والوقت.');
     if (!/^\d{2}:\d{2}$/.test(intent.time)) return clarify('ما وقت المهمة؟ اكتب الساعة، مثلاً 10 صباحاً.');
-    const due = schedule(`${date} ${intent.time}`, now);
+    const due = schedule(`${date} ${workTime(intent.time,message)}`, now);
     if (due.error) return finish({action:'reject',action_type:'rejection',reply:due.error});
     const task = await store.create(actor.id, target.id, intent.description.trim(), due.dueAt);
     return { action:'create_task', task_id:task.id, task, rescheduled:due.shifted,

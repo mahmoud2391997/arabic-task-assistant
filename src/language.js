@@ -6,6 +6,14 @@ export function normalize(text) {
     .replace(/\s+/g, ' ').trim();
 }
 
+export function workTime(time, message) {
+  const text=normalize(message);
+  // Respect explicit periods and explicitly written 24-hour clock values.
+  if (/صباح|فجر|عصر|ظهر|مساء|مغرب|ليل|\b(?:am|pm)\b/i.test(text)||/\b0[0-9]:[0-5][0-9]\b/.test(text)) return time;
+  const match=time.match(/^0([1-7]):([0-5][0-9])$/);
+  return match?`${Number(match[1])+12}:${match[2]}`:time;
+}
+
 export const policy = [
   'الدوام من الأحد إلى الخميس من 8:00 صباحاً حتى 4:00 عصراً، والسبت دوام نصفي حتى 12:00 ظهراً.',
   'طلب الإجازة الاعتيادية قبل 5 أيام عمل على الأقل، ويعتمده المشرف المباشر.',
