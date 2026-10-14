@@ -22,7 +22,8 @@ export function withNotifications(result,notifications) {
 
 export function apiResponse(result) {
   const normalized=classifyResponse(result);
-  const response={action:normalized.action,action_type:normalized.action_type,message:normalized.message};
+  // `reply` mirrors `message`: the assessment brief's R1 contract specifies `reply`.
+  const response={action:normalized.action,action_type:normalized.action_type,message:normalized.message,reply:normalized.message};
   for(const key of ['task_id','task','tasks','request','requests','entries','policy_ids','rescheduled','data','url','expires_in_seconds','status','ok']) {
     if(normalized[key]!==undefined) response[key]=normalized[key];
   }
