@@ -219,14 +219,16 @@ test('manager audit view includes all operations and supervisor view includes on
  }finally{await close();}
 });
 
-test('supervisor own expenses up to 500 need no approval; over 500 route to manager without manager self-approval',async()=>{
+test('supervisor small expenses and main manager large expenses need no approval; other requests keep approval routing',async()=>{
  const {run,pool,close}=await setup();try {
  for(const user of [2,6]) for(const amount of [400,500]) {
  const result=await run(user,{action:'create_request',request_type:'expense',amount,currency:'SAR'});
  assert.equal(result.request.status,'approved');assert.equal(result.request.approver_id,null);assert.ok(result.request.decided_at);assert.match(result.reply,/بدون انتظار موافقة/);
  }
  const higher=await run(2,{action:'create_request',request_type:'expense',amount:509,currency:'SAR'});assert.equal(higher.request.status,'pending');assert.equal(higher.request.approver_id,1);
- await assert.rejects(run(1,{action:'create_request',request_type:'expense',amount:600,currency:'SAR'}),/لا يوجد معتم/);
- const logs=(await pool.query("SELECT details FROM audit_log WHERE action='create_request'")).rows;assert.equal(logs.filter(r=>r.details.no_approval_required).length,4);
+ const manager=await run(1,{action:'create_request',request_type:'expense',amount:600,currency:'SAR'});assert.equal(manager.request.status,'approved');assert.equal(manager.request.approver_id,null);assert.ok(manager.request.decided_at);
+ await assert.rejects(run(1,{action:'create_request',request_type:'expense',amount:500,currency:'SAR'}),/لا يوجد معتم/);
+ await assert.rejects(run(2,{action:'decide_request',record_id:manager.request.id,status:'approved'}),/صلاحية|بالفعل/);
+ const logs=(await pool.query("SELECT details FROM audit_log WHERE action='create_request'")).rows;assert.equal(logs.filter(r=>r.details.no_approval_required).length,5);
  }finally{await close();}
 });

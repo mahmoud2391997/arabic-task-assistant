@@ -85,7 +85,9 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       const amount=type==='expense' ? intent.amount : null;
       if(type==='expense'&&amount==null) throw new WorkflowError('ما قيمة المصروفات بالريال السعودي؟');
       if(type==='expense'&&(!Number.isFinite(amount)||amount<=0||amount>999999999999||Math.abs(amount*100-Math.round(amount*100))>0.00001||intent.currency!=='SAR')) throw new WorkflowError('حدد مبلغ المصروفات بالريال السعودي، برقم موجب لا يزيد عن منزلتين عشريتين.');
-      const noApproval=type==='expense'&&actor.role==='supervisor'&&amount<=500;
+      const supervisorOwn=type==='expense'&&actor.role==='supervisor'&&amount<=500;
+      const mainManagerOwn=type==='expense'&&actor.id===1&&actor.role==='manager'&&amount>500;
+      const noApproval=supervisorOwn||mainManagerOwn;
       const assigned=noApproval ? null : await approver(client,actor,type,amount);
       const reviewer=type==='sick_leave' ? null : assigned;
       const monitor=type==='sick_leave' ? assigned : null;
@@ -96,7 +98,7 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       const request=publicRequest(row,now);
       return {action:'create_request',request,reply:type==='sick_leave'
         ? `تم تسجيل العودة من الإجازة المرضية #${row.id}، بدون طلب موافقة مسبقة. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق التقرير الطبي هنا خلال يومين كحد أقصى من العودة.${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
-        : noApproval ? `تم تسجيل مصروفاتك #${row.id} بقيمة ${amount} ريال بدون انتظار موافقة؛ مصروفات المشرف لنفسه حتى 500 ريال لا تحتاج اعتماداً.`
+        : noApproval ? `تم تسجيل مصروفاتك #${row.id} بقيمة ${amount} ريال بدون انتظار موافقة؛ ${supervisorOwn?'مصروفات المشرف لنفسه حتى 500 ريال':'مصروفات المدير الرئيسي لنفسه فوق 500 ريال'} لا تحتاج اعتماداً.`
         : `تم تقديم طلب ${names[type]} #${row.id} إلى صندوق طلبات ${reviewer.name}. الطلب بانتظار موافقته، ولم يُعتمد بعد.`};
     }
     if(intent.action==='review_report') {
