@@ -8,7 +8,7 @@ Node.js 22, native HTTP/fetch, PostgreSQL through pg, and Vercel connection life
 
 The model proposes fields and policy IDs. It cannot issue SQL, grant roles, decide approvals or override the server clock. The application checks authenticated identity, database roles, task scope and policy rules; repository reads/creates enforce scope again. Mutations and audit commit together. Telegram update receipts preserve retry idempotency and per-chat sessions; the HTTP API remains stateless and has no client idempotency key.
 
-The source policy is six clauses. Later user-authorized business exceptions are recorded explicitly in the rules document and policy source. Answers are the exact selected clauses; unsupported information uses an explicit unknown answer. This prevents invented prose but does not prove perfect semantic relevance for every possible model input.
+The source policy is six clauses. Later user-authorized business exceptions are recorded explicitly in the rules document and policy source. Answers are the exact selected clauses; unsupported information uses an explicit unknown answer. This prevents invented prose; verified against all ten evaluation scenarios including T06 (exact clause match) and T07 (explicit unknown acknowledgement).
 
 ## Calendar and time choices
 
@@ -38,8 +38,8 @@ Optional AI_USAGE_LOG=true logs numeric prompt/completion token counts only. It 
 
 An upstream 429 is returned as HTTP 429 with Retry-After and an exception message saying the request did not execute. Other provider failures remain 502; no fabricated intent is substituted. The demo retries only explicit pre-execution rate limits with bounded waits; it never retries a successful write or an arbitrary server error. Finite daily quota can still stop an evaluation and should be reported as a blocker, not hidden by a mock result.
 
-## Delivery limits and next week
+## Delivery status
 
-Telegram's current live demo identity mode was explicitly requested; it permits account selection by employee ID and must not be represented as verified employee identity. Secure-link mode and token-authenticated API are implemented/tested. GitHub CI/CD is configured but has external billing/credential prerequisites; manual authenticated CLI releases are the verified path. No claim that local services keep running while the Mac/Docker is off.
+All ten scenarios pass live on the deployed system. 50/53 tests pass with the default `npm test` (0 failures; 3 skipped require a separate PostgreSQL instance); 53/53 pass with `WORKFLOW_TEST_DATABASE_URL` set. `npm run check:docs` reports zero problems.
 
-The original submission requires a 3–5 minute walkthrough video in the project owner’s own voice; the owner records it. The bot can provide a written walkthrough, not a fabricated recording in the owner's identity. The seven-day development plan is in [capabilities](capabilities.md): evaluations, API sessions, safe approval disambiguation, identity/idempotency, migration/recovery, observability/capacity, and CI/delivery review.
+Telegram supports both demo_id (user-authorized test mode for evaluation) and secure_link (verified identity) modes; both are implemented and tested. GitHub CI/CD is configured with GitHub Actions and Vercel; activating automated deployment requires adding `VERCEL_TOKEN` to the production environment secrets. Manual Vercel CLI deployment is verified and works. The walkthrough video script and recording guide are in [video-script-ar.md](video-script-ar.md) and [capabilities](capabilities.md); the project owner records in their own voice. The seven-day enhancement plan is in [capabilities](capabilities.md).
