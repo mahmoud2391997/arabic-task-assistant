@@ -37,7 +37,7 @@ function publicRequest(row,now) {
   return result;
 }
 function describe(row) {
-  return `#${row.id} ${names[row.request_type]}${row.employee_name?` — ${row.employee_name}`:''} — ${statuses[row.status]}${row.request_date ? ` — ${row.request_type==='sick_leave'?'العودة ':''}${row.request_date}${row.end_date?` إلى ${row.end_date}`:''}` : ''}${row.amount ? ` — ${row.amount} ريال` : ''}${row.approver_id ? ` — المعتمد ${row.approver_name||`رقم ${row.approver_id}`}` : ''}${row.report_deadline ? ` — مهلة التقرير ${row.report_deadline}` : ''}`;
+  return `#${row.id} ${names[row.request_type]}${row.employee_name?` — ${row.employee_name}`:''} — ${statuses[row.status]}${row.report_review_status?` — التقرير ${row.report_review_status==='approved'?'مقبول':'مرفوض'}`:''}${row.request_date ? ` — ${row.request_type==='sick_leave'?'العودة ':''}${row.request_date}${row.end_date?` إلى ${row.end_date}`:''}` : ''}${row.amount ? ` — ${row.amount} ريال` : ''}${row.approver_id ? ` — المعتمد ${row.approver_name||`رقم ${row.approver_id}`}` : ''}${row.report_deadline ? ` — مهلة التقرير ${row.report_deadline}` : ''}`;
 }
 export async function executeWorkflow({store,userId,intent,now,document,requireLeaveRange=false}) {
   return transaction(store,async client=>{
@@ -97,6 +97,17 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
         ? `تم تسجيل العودة من الإجازة المرضية #${row.id}، بدون طلب موافقة مسبقة. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق التقرير الطبي هنا خلال يومين كحد أقصى من العودة.${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
         : `تم تقديم طلب ${names[type]} #${row.id} إلى صندوق طلبات ${reviewer.name}. الطلب بانتظار موافقته، ولم يُعتمد بعد.`};
     }
+    if(intent.action==='review_report') {
+      if(!Number.isSafeInteger(intent.record_id)||!['approved','rejected'].includes(intent.status)) throw new WorkflowError('حدد التقرير وقرار القبول أو الرفض.');
+      const row=(await client.query('SELECT * FROM employee_requests WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];
+      const owner=row?await employee(client,row.employee_id):null;
+      if(!row||row.request_type!=='sick_leave'||actor.role!=='supervisor'||row.monitor_id!==actor.id||owner.department!==actor.department) throw new WorkflowError('لا تملك صلاحية مراجعة هذا التقرير الطبي.',true);
+      if(!row.report_file_id) throw new WorkflowError('لم يتم إرفاق التقرير الطبي بعد.');
+      if(row.report_review_status) throw new WorkflowError('تمت مراجعة هذا التقرير بالفعل.',false,true);
+      const updated=(await client.query('UPDATE employee_requests SET report_review_status=$1,report_reviewed_at=$2,report_reviewed_by=$3 WHERE id=$4 RETURNING *',[intent.status,now,actor.id,row.id])).rows[0];
+      await audit(client,actor.id,'review_report',{request_id:row.id,status:intent.status});
+      return {action:'review_report',request:publicRequest(updated,now),reply:`تم ${intent.status==='approved'?'قبول':'رفض'} التقرير الطبي الخاص بـ${owner.name}.`};
+    }
     if(intent.action==='view_report') {
       if(!Number.isSafeInteger(intent.record_id)) throw new WorkflowError('اختر التقرير الطبي الذي تريد عرضه.');
       const row=(await client.query('SELECT * FROM employee_requests WHERE id=$1 FOR SHARE',[intent.record_id])).rows[0];
@@ -104,7 +115,7 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       if(!row||row.request_type!=='sick_leave'||!(row.employee_id===actor.id||(actor.role==='supervisor'&&row.monitor_id===actor.id&&owner.department===actor.department))) throw new WorkflowError('لا تملك صلاحية عرض هذا التقرير الطبي.',true);
       if(!row.report_file_id) throw new WorkflowError('لم يتم إرفاق التقرير الطبي بعد.');
       await audit(client,actor.id,'view_report',{request_id:row.id});
-      return {action:'view_report',reply:`التقرير الطبي الخاص بـ${owner.name}.`,data:{report_id:row.id,available:true},documents:[{file_id:row.report_file_id,media_type:row.report_media_type,caption:`التقرير الطبي — ${owner.name}${row.request_date?` — العودة ${dateOnly(row.request_date)}`:''}`}]};
+      return {action:'view_report',reply:`التقرير الطبي الخاص بـ${owner.name}.`,data:{report_id:row.id,available:true,review_status:row.report_review_status||null},documents:[{file_id:row.report_file_id,media_type:row.report_media_type,caption:`التقرير الطبي — ${owner.name}${row.request_date?` — العودة ${dateOnly(row.request_date)}`:''}`}]};
     }
     if(intent.action==='decide_request') {
       const row=(await client.query('SELECT * FROM employee_requests WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];

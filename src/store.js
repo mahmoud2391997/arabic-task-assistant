@@ -56,6 +56,9 @@ export async function initialize(pool) {
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
   await pool.query('ALTER TABLE employee_requests ADD COLUMN IF NOT EXISTS end_date DATE');
+  await pool.query('ALTER TABLE employee_requests ADD COLUMN IF NOT EXISTS report_review_status TEXT');
+  await pool.query('ALTER TABLE employee_requests ADD COLUMN IF NOT EXISTS report_reviewed_at TIMESTAMPTZ');
+  await pool.query('ALTER TABLE employee_requests ADD COLUMN IF NOT EXISTS report_reviewed_by INTEGER REFERENCES employees(id)');
   await pool.query("ALTER TABLE employee_requests ADD COLUMN IF NOT EXISTS report_media_type TEXT NOT NULL DEFAULT 'document'");
   await pool.query('ALTER TABLE employee_requests ADD COLUMN IF NOT EXISTS monitor_id INTEGER REFERENCES employees(id)');
   await pool.query('CREATE INDEX IF NOT EXISTS requests_approver_status ON employee_requests (approver_id,status)');

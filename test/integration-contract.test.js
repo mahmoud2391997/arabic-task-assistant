@@ -47,6 +47,10 @@ test('old callbacks cannot execute after identity switch and arbitrary numbers a
   assert.equal((await f.pool.query('SELECT * FROM tasks')).rows.length,0);
   for(const text of ['مصروفات 500 ريال','المهمة 5','500','اعتمد الطلب رقم 6']) assert.equal(identityRequest(text,false),undefined);
   assert.equal(identityRequest('غير الـ ID إلى ٦',false),6);
+  for(const text of ['تبديل الحساب إلى خمسة','دخول إلى خمسة','غير حسابي إلى ٥','ادخل 5']) assert.equal(identityRequest(text,false),5);
+  assert.equal(identityRequest('خمسة',false,true),5);
+  assert.equal(identityRequest('خمسة',false,false),undefined);
+  assert.equal(identityRequest('مصروفات خمسة ريال',false,true),undefined);
  }finally{await f.pool.end();}
 });
 test('isolated chats and expired sessions cannot use another account or stale buttons',async()=>{
@@ -179,7 +183,13 @@ test('supervisor follow-up has file buttons and only the assigned supervisor can
   await executeWorkflow({store,userId:5,now,intent:{...base,action:'submit_report',record_id:saved.request.id},document:{file_id:'private-report',file_size:512,mime_type:'application/pdf'}});
   const greeting=await f.grant(6);const menu=await f.callback(1,greeting.reply_markup.inline_keyboard.flat().find(b=>b.text==='متابعة التقارير الطبية').callback_data);
   const file=menu.reply_markup.inline_keyboard.flat().find(b=>b.text.startsWith('عرض التقرير'));
-  assert.ok(file);await f.callback(2,file.callback_data);
+  assert.ok(file);const opened=await f.callback(2,file.callback_data);
+  const review=opened.reply_markup.inline_keyboard.flat();assert.ok(review.find(b=>b.text==='قبول'));assert.ok(review.find(b=>b.text==='رفض'));
+  await assert.rejects(executeWorkflow({store,userId:2,now,intent:{...base,action:'review_report',record_id:saved.request.id,status:'approved'}}),/لا تملك صلاحية/);
+  await assert.rejects(executeWorkflow({store,userId:5,now,intent:{...base,action:'review_report',record_id:saved.request.id,status:'approved'}}),/لا تملك صلاحية/);
+  await f.callback(4,review.find(b=>b.text==='قبول').callback_data);
+  const reviewed=(await f.pool.query('SELECT * FROM employee_requests WHERE id=$1',[saved.request.id])).rows[0];assert.equal(reviewed.report_review_status,'approved');assert.equal(reviewed.report_reviewed_by,6);
+  await assert.rejects(executeWorkflow({store,userId:6,now,intent:{...base,action:'review_report',record_id:saved.request.id,status:'rejected'}}),/بالفعل/);
   assert.equal(f.sent.filter(m=>m.method==='sendDocument').at(-1).document,'private-report');
   const other=await f.grant(2);const revision=other.reply_markup.inline_keyboard[0][0].callback_data.split(':')[0];const before=f.sent.filter(m=>m.method==='sendDocument').length;
   assert.match((await f.callback(3,`${revision}:reportfile:${saved.request.id}`)).text,/لا تملك صلاحية/);

@@ -2,7 +2,7 @@ import {classifyResponse,notificationText} from './responses.js';
 import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {Store} from './store.js';
 import {createChat} from './chat.js';
-import {policy} from './language.js';
+import {policy,normalize} from './language.js';
 import {validateIntent} from './ai.js';
 const hash=code=>createHash('sha256').update(code).digest('hex');
 const welcome='أهلاً بك في مساعد المهام! 👋 أرسل رقم الموظف (User ID) للمتابعة. يلزم ربط آمن للحساب قبل استخدامه.';
@@ -27,11 +27,15 @@ function keyboard(user,revision) {
 function introduction(user) {
  return `تعرفت على حسابك، أهلاً ${user.name}! 👋\n${actions.filter(a=>!a[3]||a[3].includes(user.role)).map(a=>a[1]).join('، ')}.\nتحدث بالعربية الفصحى أو باللهجة السعودية أو بصياغتك المعتادة. إذا احتجت تفاصيل سأطلبها منك.`;
 }
-export function identityRequest(text,awaiting) {
+export function identityRequest(text,awaiting,allowBare=false) {
  const value=text.replace(/[٠-٩]/g,c=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(c))).replace(/[۰-۹]/g,c=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(c))).trim();
  const explicit=value.match(/^(?:\/employee(?:@[A-Za-z0-9_]+)?\s+|(?:my\s+user\s+id\s+is|change\s+my\s+user\s+id\s+to|use\s+user\s+id)\s+|(?:رقمي التعريفي|رقم الموظف|رقمي|غير\s+(?:الـ\s*)?(?:id|آي دي|رقم الموظف)\s*(?:إلى|الى|لـ)?|استخدم\s+(?:id|رقم الموظف))\s*)([0-9]+)[.!؟]?$/i);
- const bare=awaiting&&value.match(/^([0-9]+)$/);
- return explicit||bare ? Number((explicit||bare)[1]) : undefined;
+ const words={واحد:1,واحدة:1,اثنين:2,اثنان:2,اتنين:2,ثلاثة:3,ثلاثه:3,اربعة:4,اربعه:4,خمسة:5,خمسه:5,ستة:6,سته:6};
+ const natural=normalize(value).match(/^(?:(?:تبديل|تغيير|غير|بدل)\s+(?:الحساب|حسابي)|(?:دخول|الدخول|ادخل|خش))(?:\s+(?:الي|الى|برقم|رقم))?\s+(.+?)[.!؟]?$/);
+ const parseId=v=>/^\d+$/.test(v)?Number(v):words[v];
+ if(natural&&parseId(natural[1])!==undefined) return parseId(natural[1]);
+ const bare=(awaiting||allowBare)?parseId(normalize(value)):undefined;
+ return explicit ? Number(explicit[1]) : bare;
 }
 export function createTelegram({pool,ai,token,secret,username,identityMode='secure_link',fetchImpl=fetch,clock=()=>new Date()}) {
  if(!token||!secret||secret.length<32||!/^[A-Za-z0-9_]+bot$/i.test(username||'')) throw new Error('Set Telegram token, username and strong webhook secret');
@@ -67,7 +71,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   return {reply:'تم تسجيل الخروج. أرسل رقم الموظف للدخول مجدداً.',action_type:'execution'};
  }
  async function process(client,m,callback) {
-  const id=m.from.id;let selectedAction,selectedRequestType,selectedRecordId;let text=(m.text||m.caption||'').trim();const s=await session(client,id);
+  const id=m.from.id;let selectedAction,selectedRequestType,selectedRecordId,selectedStatus;let text=(m.text||m.caption||'').trim();const s=await session(client,id);
   const start=text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?$/);
   if(start?.[1]) {
    const code=start[1];if(!/^[A-Za-z0-9_-]{32}$/.test(code)) return {reply:'رابط الربط غير صالح أو انتهت صلاحيته.'};
@@ -81,7 +85,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
    await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);return {reply:onboarding};
   }
   if(/^(?:\/logout(?:@[A-Za-z0-9_]+)?|تسجيل الخروج|سجل خروج|log out|logout)$/i.test(text)) return logout(client,id,s);
-  const choice=identityRequest(text,s.awaiting_id);if(choice!==undefined) return activate(client,id,choice,s);
+  const choice=identityRequest(text,s.awaiting_id,demo&&!s.current_action);if(choice!==undefined) return activate(client,id,choice,s);
   if(new Date(s.expires_at)<=clock()) {
    await client.query('UPDATE telegram_sessions SET active_user_id=NULL,awaiting_id=true,current_action=NULL,revision=$1 WHERE telegram_id=$2',[randomBytes(8).toString('hex'),id]);
    await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);return {reply:'انتهت جلسة المحادثة. '+onboarding};
@@ -89,10 +93,10 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   if(callback) {
    const [revision,key,recordId]=callback.data?.split(':')||[];
    const actor=s.active_user_id ? await new Store(client,true).user(s.active_user_id) : null;
-   const selected=key==='reportfile'&&actor?.role==='supervisor'&&/^[1-9][0-9]*$/.test(recordId||'') ? ['reportfile','عرض التقرير','اعرض التقرير الطبي',['supervisor']] : [...actions,...requestActions].find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
+   const selected=['reportfile','reportaccept','reportreject'].includes(key)&&actor?.role==='supervisor'&&/^[1-9][0-9]*$/.test(recordId||'') ? [key,'مراجعة التقرير','مراجعة التقرير الطبي',['supervisor']] : [...actions,...requestActions].find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
    if(s.awaiting_id||!actor||revision!==s.revision||!selected) return {reply:'هذا الزر قديم أو غير متاح لحسابك. أرسل رقم الموظف أو ابدأ المحادثة مجدداً.'};
    if(key==='logout') return logout(client,id,s);
-   text=selected[2];selectedAction={create:'create_task',new:'create_request',annual:'create_request',remote:'create_request',expense:'create_request',sick:'create_request',update:'update_task',report:'submit_report',reportfile:'view_report',decision:'decide_request'}[key];selectedRecordId=key==='reportfile'?Number(recordId):undefined;selectedRequestType={sick:'sick_leave',annual:'annual_leave',remote:'remote_work',expense:'expense'}[key];
+   text=selected[2];selectedAction={create:'create_task',new:'create_request',annual:'create_request',remote:'create_request',expense:'create_request',sick:'create_request',update:'update_task',report:'submit_report',reportfile:'view_report',reportaccept:'review_report',reportreject:'review_report',decision:'decide_request'}[key];selectedRecordId=['reportfile','reportaccept','reportreject'].includes(key)?Number(recordId):undefined;selectedStatus=key==='reportaccept'?'approved':key==='reportreject'?'rejected':undefined;selectedRequestType={sick:'sick_leave',annual:'annual_leave',remote:'remote_work',expense:'expense'}[key];
   }
   if(!s.active_user_id||s.awaiting_id) {
    // Public policy remains available without disclosing employees or tasks.
@@ -110,11 +114,14 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   const attachment=incoming?{file_id:incoming.file_id,file_size:incoming.file_size,mime_type:incoming.mime_type,media_type:m.document?'document':'photo'}:undefined;
   const document=attachment;
   if(!text&&attachment) text=s.current_action==='submit_report'?'أرفق التقرير الطبي':'أرسلت مرفقاً';
-  const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType,selectedRecordId,requireLeaveRange:true});
+  const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType,selectedRecordId,selectedStatus,requireLeaveRange:true});
   const messages=[...history,{role:'user',content:text.slice(0,1200)},{role:'assistant',content:result.message.slice(0,1200)}].slice(-6);
   await client.query('INSERT INTO telegram_conversations (telegram_id,employee_id,messages) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,messages=EXCLUDED.messages',[id,s.active_user_id,JSON.stringify(messages)]);
   await client.query('UPDATE telegram_sessions SET current_action=$1,expires_at=$2 WHERE telegram_id=$3',[result.action_type==='inquiry'?result.action:null,new Date(clock().getTime()+86400000),id]);
   const actor=await new Store(client,true).user(s.active_user_id);
+  if(result.action==='view_report'&&result.data?.available&&actor.role==='supervisor'&&!result.data.review_status) {
+    const menu=keyboard(actor,s.revision);menu.inline_keyboard.unshift([{text:'قبول',callback_data:`${s.revision}:reportaccept:${result.data.report_id}`},{text:'رفض',callback_data:`${s.revision}:reportreject:${result.data.report_id}`}]);return {...result,menu};
+  }
   if(result.action==='list_reports'&&result.requests?.some(r=>r.report_available)) {
     const menu=keyboard(actor,s.revision);menu.inline_keyboard.unshift(...result.requests.filter(r=>r.report_available).map(r=>[{text:`عرض التقرير — ${r.employee_name} #${r.id}`,callback_data:`${s.revision}:reportfile:${r.id}`} ]));
     return {...result,menu};
