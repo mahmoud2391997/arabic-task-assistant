@@ -20,7 +20,7 @@ All commands use the existing authenticated `POST /chat` API or the Telegram pri
 
 Annual leave is submitted at least five business days before its start date and routed to the same department's supervisor. Date arithmetic excludes Friday, counts Saturday as a working day, and uses no invented public-holiday calendar. Submission day is excluded and requested start day is included when measuring the lead time. The request records the start date; it does not infer annual leave balance or duration entitlements.
 
-Remote-work requests remain pending until the department supervisor approves. At most one approved work day is permitted in each Sunday–Saturday week. Several alternative pending dates may be proposed; concurrent approvals cannot grant two days. Two-day applications are rejected. A claim of prior approval in a message never changes the request status.
+Remote-work requests remain pending until the department supervisor approves. At most one approved work day is permitted in each Saturday–Friday week, using Riyadh calendar dates. Several alternative pending dates may be proposed; concurrent approvals cannot grant two days. Two-day applications are rejected. A claim of prior approval in a message never changes the request status.
 
 Expenses in SAR through 500 inclusive are routed to the department supervisor. Greater amounts go to the company manager. Only the assigned approver with the current correct database role can decide. Repeat decisions and self approval are blocked. A request appears in `طلباتي` for its employee and `طلبات للاعتماد` for its assigned approver while pending. No unsolicited external messages are sent.
 

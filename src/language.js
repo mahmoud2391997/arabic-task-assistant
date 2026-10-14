@@ -129,6 +129,6 @@ export function businessDaysBetween(from,to) {
   return count;
 }
 export function weekStart(date) {
-  return addDays(date,-new Date(`${date}T12:00:00Z`).getUTCDay());
+  return addDays(date,-((new Date(`${date}T12:00:00Z`).getUTCDay()+1)%7));
 }
 export function addCalendarDays(date,count) {return addDays(date,count);}

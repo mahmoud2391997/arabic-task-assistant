@@ -50,8 +50,9 @@ test('remote work stays pending until supervisor approval and permits one approv
   await run(2,{action:'decide_request',record_id:a.request.id,status:'approved'});
   await assert.rejects(run(2,{action:'decide_request',record_id:b.request.id,status:'approved'}),/يوم ثان/);
   await assert.rejects(run(4,{action:'create_request',request_type:'remote_work',date_kind:'day_after_tomorrow'}),/معتمد/);
-  const c=await run(4,{action:'create_request',request_type:'remote_work',date_kind:'absolute',date_value:'2026-10-18'});
+  const c=await run(4,{action:'create_request',request_type:'remote_work',date_kind:'absolute',date_value:'2026-10-17'});
   assert.equal((await run(2,{action:'decide_request',record_id:c.request.id,status:'approved'})).request.status,'approved');
+  await assert.rejects(run(4,{action:'create_request',request_type:'remote_work',date_kind:'absolute',date_value:'2026-10-18'}),/معتمد/);
  } finally {await close();}
 });
 
