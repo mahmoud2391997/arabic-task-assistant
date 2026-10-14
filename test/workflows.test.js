@@ -90,18 +90,20 @@ test('medical reports require an attachment, show missing after two days, accept
  } finally {await close();}
 });
 
-test('task status changes on its due day after its time, including outside office hours, using server clock and scoped roles',async()=>{
+test('task status updates daily before closing, including before due date and on later days, with scoped roles',async()=>{
  const {run,store,pool,close}=await setup();
  try {
   const task=await store.create(2,4,'status test','2026-10-13T10:00:00+03:00');
   const update={action:'update_task',record_id:task.id,status:'completed'};
   await assert.rejects(run(3,update),/صلاحية/);
-  assert.equal((await run(4,update,new Date('2026-10-13T13:00:00Z'))).task.status,'completed');
-  await assert.rejects(run(4,update,new Date('2026-10-14T06:00:00Z')),/يوم المهمة/);
+  await assert.rejects(run(4,update,new Date('2026-10-13T13:00:00Z')),/نهاية دوام/);
+  assert.equal((await run(4,update,new Date('2026-10-14T06:00:00Z'))).task.status,'completed');
   assert.equal((await run(4,update,new Date('2026-10-13T12:59:00Z'))).task.status,'completed');
   const saturday=await store.create(2,4,'Saturday status','2026-10-17T10:00:00+03:00');
-  assert.equal((await run(4,{...update,record_id:saturday.id},new Date('2026-10-17T09:00:00Z'))).task.status,'completed');
+  await assert.rejects(run(4,{...update,record_id:saturday.id},new Date('2026-10-17T09:00:00Z')),/نهاية دوام/);
+  assert.equal((await run(4,{...update,record_id:saturday.id},new Date('2026-10-14T04:00:00Z'))).task.status,'completed');
   assert.equal((await run(4,{...update,record_id:saturday.id},new Date('2026-10-17T08:59:00Z'))).task.status,'completed');
+  await assert.rejects(run(4,update,new Date('2026-10-16T06:00:00Z')),/الجمعة/);
   const audits=(await pool.query("SELECT details FROM audit_log WHERE action='update_task'")).rows;
   assert.equal(audits.length,4);assert.ok(audits[0].details.updated_at);
  } finally {await close();}
@@ -233,7 +235,7 @@ test('supervisor small expenses and main manager large expenses need no approval
  }finally{await close();}
 });
 
-test('task text and date edits preserve other fields, reject past schedules, and status waits until due time',async()=>{
+test('task text and date edits preserve other fields, reject past schedules, and status updates before due time and on later days before closing',async()=>{
  const {run,store,pool,close}=await setup();const clock=new Date('2026-10-14T09:00:00Z');try {
  const task=await store.create(2,3,'مراجعة أولية','2026-10-15T10:00:00+03:00');
  const edited=await run(2,{action:'edit_task',record_id:task.id,description:'مراجعة التقرير النهائي'},clock);assert.equal(edited.task.description,'مراجعة التقرير النهائي');assert.equal(new Date(edited.task.due_at).toISOString(),'2026-10-15T07:00:00.000Z');
@@ -241,11 +243,11 @@ test('task text and date edits preserve other fields, reject past schedules, and
  await assert.rejects(run(5,{action:'edit_task',record_id:task.id,description:'تعديل غير مسموح'},clock),/صلاحية/);
  await assert.rejects(run(2,{action:'edit_task',record_id:task.id,date_kind:'today',time:'11:00'},clock),/الوقت الحالي/);
  const status={action:'update_task',record_id:task.id,status:'completed'};
- await assert.rejects(run(3,status,clock),/لم يحن/);
+ assert.equal((await run(3,status,clock)).task.status,'completed');
  assert.equal((await run(3,status,new Date('2026-10-14T10:01:00Z'))).task.status,'completed');
- assert.equal((await run(3,status,new Date('2026-10-14T20:59:00Z'))).task.status,'completed');
- await assert.rejects(run(3,status,new Date('2026-10-14T21:00:00Z')),/يوم المهمة/);
- await assert.rejects(run(3,status,new Date('2026-10-15T09:00:00Z')),/يوم المهمة/);
+ await assert.rejects(run(3,status,new Date('2026-10-14T20:59:00Z')),/نهاية دوام/);
+ assert.equal((await run(3,status,new Date('2026-10-14T21:00:00Z'))).task.status,'completed');
+ assert.equal((await run(3,status,new Date('2026-10-15T09:00:00Z'))).task.status,'completed');
  assert.equal((await pool.query("SELECT * FROM audit_log WHERE action='edit_task'")).rows.length,2);
  }finally{await close();}
 });

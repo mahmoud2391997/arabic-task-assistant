@@ -58,7 +58,7 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       await audit(client,actor.id,'list_tasks',{count:tasks.length,source:'update_task'});
       const labels={pending:'معلقة',in_progress:'قيد التنفيذ',completed:'مكتملة'};
       return {action:'update_task',action_type:'inquiry',tasks,reply:tasks.length
-        ? tasks.map(t=>`#${t.id} ${t.description} — ${labels[t.status]||t.status}`).join('\n')+'\nاختر رقم المهمة وأدخل الحالة الجديدة: معلقة، قيد التنفيذ، أو مكتملة. التحديث خلال يوم المهمة بعد حلول موعدها، حتى خارج الدوام.'
+        ? tasks.map(t=>`#${t.id} ${t.description} — ${labels[t.status]||t.status}`).join('\n')+'\nاختر رقم المهمة وأدخل الحالة الجديدة: معلقة، قيد التنفيذ، أو مكتملة. يمكن تحديث الحالة يومياً حتى قبل الموعد أو في يوم لاحق، ولكن قبل نهاية دوام اليوم.'
         : 'لا توجد مهام متاحة للتحديث ضمن صلاحيات حسابك.'};
     }
     if (['decide_request','update_task'].includes(intent.action) && !Number.isSafeInteger(intent.record_id)) throw new WorkflowError(intent.action==='update_task'?'حدد رقم المهمة المطلوب تحديثها.':'حدد رقم طلب الاعتماد.');
@@ -189,8 +189,10 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       const row=(await client.query('SELECT * FROM tasks WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];
       const target=row ? await employee(client,row.assignee_id) : null;
       if(!row||!canAccess(actor,target)) throw new WorkflowError('لا تملك صلاحية تحديث هذه المهمة.',true);
-      if(riyadhToday(row.due_at)!==riyadhToday(now)) throw new WorkflowError('تحديث حالة المهمة يجب أن يكون خلال يوم المهمة فقط.',false,true);
-      if(new Date(row.due_at)>now) throw new WorkflowError('لم يحن موعد المهمة بعد. تغيير الحالة مسموح بعد حلول موعدها خلال يومها، بما في ذلك خارج الدوام.',false,true);
+      const today=riyadhToday(now);
+      const day=new Date(`${today}T12:00:00Z`).getUTCDay();
+      const closing=day===6?'12:00':'16:00';
+      if(day===5 || now>=new Date(`${today}T${closing}:00+03:00`)) throw new WorkflowError('تحديث حالة المهمة مسموح يومياً قبل نهاية دوام اليوم: 16:00 من الأحد إلى الخميس و12:00 يوم السبت. الجمعة يوم عطلة.',false,true);
       if(!['pending','in_progress','completed'].includes(intent.status)) throw new WorkflowError('حدد الحالة: معلقة، قيد التنفيذ، أو مكتملة.');
       const task=(await client.query('UPDATE tasks SET status=$1,updated_at=$2 WHERE id=$3 RETURNING *',[intent.status,now,row.id])).rows[0];
       await audit(client,actor.id,'update_task',{task_id:row.id,status:intent.status,updated_at:now.toISOString()});

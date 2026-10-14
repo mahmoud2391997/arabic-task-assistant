@@ -12,7 +12,7 @@ The source policy is six clauses. Later user-authorized business exceptions are 
 
 ## Calendar and time choices
 
-Riyadh business time is independent of the host/client timezone. Relative dates are resolved in code. Friday shifts to Saturday at the same hour, including outside Saturday's company working hours, as explicitly decided to align T09 with the original exercise. Unqualified 1–7 uses the afternoon work context; explicit morning/24-hour values are respected. New task schedules cannot be backdated; status changes require the due day and an elapsed due time, with no office-hours restriction. Remote-work weeks start Saturday. No invented public holidays, leave balances or medical-report penalties.
+Riyadh business time is independent of the host/client timezone. Relative dates are resolved in code. Friday shifts to Saturday at the same hour, including outside Saturday's company working hours, as explicitly decided to align T09 with the original exercise. Unqualified 1–7 uses the afternoon work context; explicit morning/24-hour values are respected. New task schedules cannot be backdated; status changes are allowed daily before or after the due date/time, but before the current working day closes (16:00 Sunday–Thursday, 12:00 Saturday; Friday is off). Remote-work weeks start Saturday. No invented public holidays, leave balances or medical-report penalties.
 
 ## Cost model — checked 14 October 2026
 
