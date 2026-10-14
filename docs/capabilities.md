@@ -27,7 +27,7 @@ Cost formula and pricing sources: [design decisions](decisions.md). The 10-scena
 
 ## Delivery status
 
-**50/53 tests pass** with the default `npm test` (0 failures; 3 skipped tests require a separate real PostgreSQL instance). **53/53 pass** with `WORKFLOW_TEST_DATABASE_URL` and `TELEGRAM_TEST_DATABASE_URL` set. All ten scenarios passed live against Groq and Neon on 14 October 2026. `npm run check:docs` reports zero problems across all documentation, links, scripts and configuration.
+**53/56 tests pass** with the default `npm test` (0 failures; 3 skipped tests require a separate real PostgreSQL instance). **56/56 pass** with `WORKFLOW_TEST_DATABASE_URL` and `TELEGRAM_TEST_DATABASE_URL` set. All ten scenarios passed live against Groq and Neon on 14 October 2026. `npm run check:docs` reports zero problems across all documentation, links, scripts and configuration.
 
 ## One additional week
 
