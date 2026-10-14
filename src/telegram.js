@@ -11,6 +11,7 @@ const actions=[
  ['requests','طلباتي','طلباتي'],['new','طلب جديد','أريد تقديم طلب'],
  ['sick','تسجيل العودة من المرضية','عدت اليوم من الإجازة المرضية'],
  ['update','تحديث حالة مهمة','أريد تحديث حالة مهمة'],['report','إرفاق تقرير طبي','أريد إرفاق تقرير طبي'],
+ ['edit','تعديل وصف أو موعد مهمة','أريد تعديل وصف أو موعد مهمة'],
  ['policy','سياسة الشركة','سياسة الشركة'],['logout','تسجيل الخروج','/logout'],
  ['department','مهام القسم','مهام القسم',['supervisor']],
  ['company','كل المهام','كل المهام',['manager']],
@@ -96,7 +97,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
    const selected=['reportfile','reportaccept','reportreject'].includes(key)&&actor?.role==='supervisor'&&/^[1-9][0-9]*$/.test(recordId||'') ? [key,'مراجعة التقرير','مراجعة التقرير الطبي',['supervisor']] : [...actions,...requestActions].find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
    if(s.awaiting_id||!actor||revision!==s.revision||!selected) return {reply:'هذا الزر قديم أو غير متاح لحسابك. أرسل رقم الموظف أو ابدأ المحادثة مجدداً.'};
    if(key==='logout') return logout(client,id,s);
-   text=selected[2];selectedAction={create:'create_task',new:'create_request',annual:'create_request',remote:'create_request',expense:'create_request',sick:'create_request',update:'update_task',report:'submit_report',reportfile:'view_report',reportaccept:'review_report',reportreject:'review_report',decision:'decide_request'}[key];selectedRecordId=['reportfile','reportaccept','reportreject'].includes(key)?Number(recordId):undefined;selectedStatus=key==='reportaccept'?'approved':key==='reportreject'?'rejected':undefined;selectedRequestType={sick:'sick_leave',annual:'annual_leave',remote:'remote_work',expense:'expense'}[key];
+   text=selected[2];selectedAction={create:'create_task',new:'create_request',annual:'create_request',remote:'create_request',expense:'create_request',sick:'create_request',update:'update_task',edit:'edit_task',report:'submit_report',reportfile:'view_report',reportaccept:'review_report',reportreject:'review_report',decision:'decide_request'}[key];selectedRecordId=['reportfile','reportaccept','reportreject'].includes(key)?Number(recordId):undefined;selectedStatus=key==='reportaccept'?'approved':key==='reportreject'?'rejected':undefined;selectedRequestType={sick:'sick_leave',annual:'annual_leave',remote:'remote_work',expense:'expense'}[key];
   }
   if(!s.active_user_id||s.awaiting_id) {
    // Public policy remains available without disclosing employees or tasks.

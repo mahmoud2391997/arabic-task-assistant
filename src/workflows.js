@@ -1,5 +1,5 @@
 import {canAccess} from './store.js';
-import {dateFromIntent,riyadhToday,businessDaysBetween,weekStart,addCalendarDays,workingHoursError} from './language.js';
+import {dateFromIntent,riyadhToday,businessDaysBetween,weekStart,addCalendarDays,workingHoursError,schedule,hasTaskDescription} from './language.js';
 
 export class WorkflowError extends Error {
   constructor(message,forbidden=false,rejection=false) {super(message);this.forbidden=forbidden;this.rejection=forbidden||rejection;}
@@ -162,6 +162,29 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       await audit(client,actor.id,'submit_report',{request_id:row.id,late});
       return {action:'submit_report',request:publicRequest(updated,now),reply:`تم استلام تقريرك الطبي${row.request_date?` عن العودة بتاريخ ${dateOnly(row.request_date)}`:""}.${late?' وصل بعد المهلة؛ السياسة لا تحدد عقوبة.':''} المشرف يتابع التقرير ويراجع فترة الإجازة وتاريخ العودة داخله. استلام الملف لا يعني التحقق من صحة محتواه الطبي.`};
     }
+    if(intent.action==='edit_task') {
+      if(!Number.isSafeInteger(intent.record_id)) throw new WorkflowError('حدد رقم المهمة ووصفها الجديد أو موعدها الجديد باليوم والساعة.');
+      const row=(await client.query('SELECT * FROM tasks WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];
+      const target=row?await employee(client,row.assignee_id):null;
+      if(!row||!canAccess(actor,target)) throw new WorkflowError('لا تملك صلاحية تعديل هذه المهمة.',true);
+      const hasDescription=Boolean(intent.description.trim());
+      const changeDate=intent.date_kind!=='unknown',changeTime=Boolean(intent.time);
+      if(!hasDescription&&!changeDate&&!changeTime) throw new WorkflowError('ما الوصف الجديد أو الموعد الجديد للمهمة؟');
+      if(hasDescription&&!hasTaskDescription(intent.description)) throw new WorkflowError('اكتب وصف العمل المطلوب، وليس الموعد فقط.');
+      let dueAt=row.due_at,shifted=false;
+      if(changeDate||changeTime) {
+        const date=changeDate?dateFromIntent(intent,now):riyadhToday(row.due_at);
+        if(!date) throw new WorkflowError('حدد يوم المهمة الجديد.');
+        const old=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Riyadh',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(row.due_at));
+        const due=schedule(`${date} ${changeTime?intent.time:old}`,now);
+        if(due.error) throw new WorkflowError(due.error,false,true);
+        if(new Date(due.dueAt)<now) throw new WorkflowError('موعد المهمة لا يجوز أن يكون قبل الوقت الحالي. اختر موعداً قادماً.',false,true);
+        dueAt=due.dueAt;shifted=due.shifted;
+      }
+      const task=(await client.query('UPDATE tasks SET description=$1,due_at=$2,updated_at=$3 WHERE id=$4 RETURNING *',[hasDescription?intent.description.trim():row.description,dueAt,now,row.id])).rows[0];
+      await audit(client,actor.id,'edit_task',{task_id:row.id,before:{description:row.description,due_at:row.due_at},after:{description:task.description,due_at:task.due_at}});
+      return {action:'edit_task',task,rescheduled:shifted,reply:`تم تعديل المهمة #${row.id}.${shifted?' وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.':''}`};
+    }
     if(intent.action==='update_task') {
       const row=(await client.query('SELECT * FROM tasks WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];
       const target=row ? await employee(client,row.assignee_id) : null;
@@ -169,6 +192,7 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       const error=workingHoursError(now);
       if(error) throw new WorkflowError('لا يمكن تحديث حالة المهمة خارج الدوام. '+error,false,true);
       if(riyadhToday(row.due_at)!==riyadhToday(now)) throw new WorkflowError('تحديث حالة المهمة يجب أن يكون خلال يوم المهمة قبل نهاية الدوام.',false,true);
+      if(new Date(row.due_at)>now) throw new WorkflowError('لم يحن موعد المهمة بعد. تغيير الحالة مسموح بعد حلول موعدها خلال يومها وأثناء الدوام.',false,true);
       if(!['pending','in_progress','completed'].includes(intent.status)) throw new WorkflowError('حدد الحالة: معلقة، قيد التنفيذ، أو مكتملة.');
       const task=(await client.query('UPDATE tasks SET status=$1,updated_at=$2 WHERE id=$3 RETURNING *',[intent.status,now,row.id])).rows[0];
       await audit(client,actor.id,'update_task',{task_id:row.id,status:intent.status,updated_at:now.toISOString()});

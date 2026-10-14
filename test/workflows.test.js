@@ -232,3 +232,19 @@ test('supervisor small expenses and main manager large expenses need no approval
  const logs=(await pool.query("SELECT details FROM audit_log WHERE action='create_request'")).rows;assert.equal(logs.filter(r=>r.details.no_approval_required).length,5);
  }finally{await close();}
 });
+
+test('task text and date edits preserve other fields, reject past schedules, and status waits until due time',async()=>{
+ const {run,store,pool,close}=await setup();const clock=new Date('2026-10-14T09:00:00Z');try {
+ const task=await store.create(2,3,'مراجعة أولية','2026-10-15T10:00:00+03:00');
+ const edited=await run(2,{action:'edit_task',record_id:task.id,description:'مراجعة التقرير النهائي'},clock);assert.equal(edited.task.description,'مراجعة التقرير النهائي');assert.equal(new Date(edited.task.due_at).toISOString(),'2026-10-15T07:00:00.000Z');
+ const moved=await run(2,{action:'edit_task',record_id:task.id,date_kind:'today',time:'13:00'},clock);assert.equal(moved.task.description,'مراجعة التقرير النهائي');assert.equal(new Date(moved.task.due_at).toISOString(),'2026-10-14T10:00:00.000Z');
+ await assert.rejects(run(5,{action:'edit_task',record_id:task.id,description:'تعديل غير مسموح'},clock),/صلاحية/);
+ await assert.rejects(run(2,{action:'edit_task',record_id:task.id,date_kind:'today',time:'11:00'},clock),/الوقت الحالي/);
+ const status={action:'update_task',record_id:task.id,status:'completed'};
+ await assert.rejects(run(3,status,clock),/لم يحن/);
+ assert.equal((await run(3,status,new Date('2026-10-14T10:01:00Z'))).task.status,'completed');
+ await assert.rejects(run(3,status,new Date('2026-10-14T13:00:00Z')),/خارج الدوام/);
+ await assert.rejects(run(3,status,new Date('2026-10-15T09:00:00Z')),/يوم المهمة/);
+ assert.equal((await pool.query("SELECT * FROM audit_log WHERE action='edit_task'")).rows.length,2);
+ }finally{await close();}
+});

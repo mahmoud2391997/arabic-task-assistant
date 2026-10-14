@@ -187,3 +187,10 @@ test('task schedule alone never becomes a work description or persisted task',as
  const result=await chat({user_id:3,message:'سجل مهمة النهاردة الساعة ثلاثة'});assert.equal(result.action_type,'inquiry');assert.match(result.message,/وصف المهمة/);assert.equal((await store.list(3)).length,0);
  }finally{await pool.end();}
 });
+
+test('creating a task earlier today cannot persist a past appointment',async()=>{
+ const {pool,store}=await setup();try {
+ const chat=createChat({store,clock:()=>new Date('2026-10-14T09:00:00Z'),ai:async()=>({...base,action:'create_task',description:'مراجعة تقرير',date_kind:'today',time:'10:00'})});
+ const result=await chat({user_id:3,message:'سجل لي مراجعة تقرير اليوم الساعة 10 صباحا'});assert.equal(result.action_type,'rejection');assert.match(result.message,/الوقت الحالي/);assert.equal((await store.list(3)).length,0);
+ }finally{await pool.end();}
+});
