@@ -11,7 +11,7 @@ Server for the supplied AI engineer exercise. `POST /chat` creates and updates t
 Requires Docker Desktop and a valid Groq key. Configure secrets, without editing source code:
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env   # -n: never overwrite an existing .env (it may hold your key)
 # Set GROQ_API_KEY in .env, then:
 docker compose up -d --build
 curl http://localhost:3000/health
@@ -25,7 +25,7 @@ This starts PostgreSQL, initializes tables and six fictional employees, and runs
 Requires Node.js 22, PostgreSQL and a valid Groq key:
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 # Set GROQ_API_KEY and DATABASE_URL in .env.
 docker compose up -d db
 npm ci

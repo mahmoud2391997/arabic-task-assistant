@@ -65,7 +65,7 @@
 ## إعادة التحقق
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 # ضع المفتاح، دون تعديل الكود
 docker compose up -d --build
 docker compose exec server npm run demo
