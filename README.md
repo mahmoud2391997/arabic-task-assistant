@@ -117,7 +117,7 @@ TELEGRAM_TEST_DATABASE_URL=postgresql://assistant:assistant@localhost:5433/assis
 
 These tests create/drop isolated temporary schemas. The optional legacy `TEST_DATABASE_URL` tests drop application tables: never point any test setting at production.
 
-See [design decisions](docs/decisions.md) for assumptions, cost calculation and next steps. The assignment's personal voice recording remains something you should record yourself; `npm run demo` provides the ten-message walkthrough.
+See [design decisions](docs/decisions.md) for assumptions, cost calculation and next steps. The assignment requires a 3–5 minute walkthrough video in your own voice, which you should record yourself; `npm run demo` provides the ten-message walkthrough.
 
 ## Vercel and Neon deployment
 
