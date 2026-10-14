@@ -10,3 +10,5 @@
 - 4:15–4:45: اذكر ما أُنجز وما هو تجريبي أو يحتاج إعداد حساب: Telegram demo identity، CI billing/token، وحدود Groq.
 
 مرجع الأرقام والنتائج: assessment-report.md. مرجع القواعد والاستثناءات: business-rules.md. أرقام المهام والتواريخ تتغير حسب وقت التشغيل والقاعدة، فلا تقرأ نتيجة قديمة باعتبارها نتيجة حية.
+
+نص الكلام الجاهز بالعربي: [video-script-ar.md](video-script-ar.md). أوامر الرسائل العشر الجاهزة للصق: `scripts/test-requests.sh`. تصفير القاعدة قبل التسجيل: `npm run db:reset`.

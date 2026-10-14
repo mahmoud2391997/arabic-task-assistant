@@ -94,6 +94,15 @@ The server resolves dates in `Asia/Riyadh`, stores timestamps as PostgreSQL `TIM
 
 Groq extracts an intent and selects policy clause IDs. The application returns the exact selected source clauses; it does not use free-form generated policy answers. Unknown information returns “هذه المعلومة غير متوفرة في نص سياسة الشركة.” Relevance depends on model classification and is checked by the live demo. Unsupported details must be marked unknown in the extraction prompt.
 
+## Reset and the ten test requests
+
+```bash
+npm run db:reset                                  # Docker: docker compose exec server npm run db:reset
+bash scripts/test-requests.sh                     # runs T01–T10 in order, or paste one curl block at a time
+```
+
+`db:reset` clears all tasks, requests, audit entries and Telegram data, restarts IDs at 1 and re-seeds the six fictional employees. It refuses to run unless `DATABASE_URL` points to localhost, 127.0.0.1 or the Compose `db` service, so it cannot wipe a cloud database. `scripts/test-requests.sh` holds the ten messages as ready-to-paste `curl` commands with the expected behavior in Arabic comments. The Arabic narration for the 3–5 minute video is in [docs/video-script-ar.md](docs/video-script-ar.md).
+
 ## Verification and demo
 
 Automated coverage includes PostgreSQL permissions, all six policy answers, office-hour boundaries, request routing, supervisor/manager approvals, medical-report deadlines, status updates, concurrent remote-work approvals and Telegram retries. See [request workflows](docs/workflows.md) for commands and policy assumptions.
