@@ -1,6 +1,12 @@
 node_modules
 .git
+.tools
+.vercel
+.agents
 .env
 .env.*
+!.env.example
+coverage
 tmp
-test
+test/**
+!test/scenarios.js

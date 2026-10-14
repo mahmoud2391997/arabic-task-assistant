@@ -1,0 +1,165 @@
+{
+  "measured_at": "2026-10-14",
+  "model": "qwen/qwen3.8-27b",
+  "scope": "isolated clean-install evaluation",
+  "scenarios": [
+    {
+      "id": "T01",
+      "passed": true,
+      "http_status": 200,
+      "result": {
+        "action": "create_task",
+        "action_type": "execution",
+        "message": "تم تسجيل المهمة لـخالد بتاريخ 2026-10-15 الساعة 10:00.",
+        "task_id": 1,
+        "task": {
+          "id": 1,
+          "assignee_id": 4,
+          "created_by": 2,
+          "description": "مراجعة عرض السعر",
+          "due_at": "2026-10-15T07:00:00.000Z",
+          "status": "pending",
+          "created_at": "2026-10-14T05:46:29.120Z",
+          "updated_at": null
+        },
+        "rescheduled": false
+      }
+    },
+    {
+      "id": "T02",
+      "passed": true,
+      "http_status": 403,
+      "result": {
+        "action": "create_task",
+        "action_type": "rejection",
+        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
+      }
+    },
+    {
+      "id": "T03",
+      "passed": true,
+      "http_status": 200,
+      "result": {
+        "action": "create_task",
+        "action_type": "postpone",
+        "message": "تم تسجيل المهمة لـفهد بتاريخ 2026-10-17 الساعة 09:00. وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.",
+        "task_id": 2,
+        "task": {
+          "id": 2,
+          "assignee_id": 3,
+          "created_by": 3,
+          "description": "أرسل التقرير",
+          "due_at": "2026-10-17T06:00:00.000Z",
+          "status": "pending",
+          "created_at": "2026-10-14T05:46:31.611Z",
+          "updated_at": null
+        },
+        "rescheduled": true
+      }
+    },
+    {
+      "id": "T04",
+      "passed": true,
+      "http_status": 403,
+      "result": {
+        "action": "create_task",
+        "action_type": "rejection",
+        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
+      }
+    },
+    {
+      "id": "T05",
+      "passed": true,
+      "http_status": 200,
+      "result": {
+        "action": "list_tasks",
+        "action_type": "execution",
+        "message": "إشعاراتك الجديدة:\nالمشرف سارة أسند لك مهمة #1: مراجعة عرض السعر\n\n#1 خالد: مراجعة عرض السعر — ١٥‏/١٠‏/٢٠٢٦، ١٠:٠٠ ص",
+        "tasks": [
+          {
+            "id": 1,
+            "assignee_id": 4,
+            "created_by": 2,
+            "description": "مراجعة عرض السعر",
+            "due_at": "2026-10-15T07:00:00.000Z",
+            "status": "pending",
+            "created_at": "2026-10-14T05:46:29.120Z",
+            "updated_at": null
+          }
+        ],
+        "notifications": [
+          {
+            "id": 1,
+            "task_id": 1,
+            "actor_name": "سارة",
+            "actor_role": "supervisor",
+            "description": "مراجعة عرض السعر"
+          }
+        ]
+      }
+    },
+    {
+      "id": "T06",
+      "passed": true,
+      "http_status": 200,
+      "result": {
+        "action": "policy_answer",
+        "action_type": "execution",
+        "message": "طلب الإجازة الاعتيادية قبل 5 أيام عمل على الأقل، ويعتمده المشرف المباشر.",
+        "policy_ids": [
+          2
+        ]
+      }
+    },
+    {
+      "id": "T07",
+      "passed": true,
+      "http_status": 200,
+      "result": {
+        "action": "policy_answer",
+        "action_type": "inquiry",
+        "message": "هذه المعلومة غير متوفرة في نص سياسة الشركة.",
+        "policy_ids": []
+      }
+    },
+    {
+      "id": "T08",
+      "passed": true,
+      "http_status": 403,
+      "result": {
+        "action": "list_tasks",
+        "action_type": "rejection",
+        "message": "لا تملك صلاحية تنفيذ هذا الطلب حسب دورك وقسمك المسجلين."
+      }
+    },
+    {
+      "id": "T09",
+      "passed": true,
+      "http_status": 403,
+      "result": {
+        "action": "create_task",
+        "action_type": "rejection",
+        "message": "وافق الموعد يوم الجمعة، وبعد ترحيله إلى السبت: الموعد خارج ساعات دوام السبت. اختر وقتاً من 08:00 صباحاً إلى ما قبل 12:00 ظهراً."
+      }
+    },
+    {
+      "id": "T10",
+      "passed": true,
+      "http_status": 200,
+      "result": {
+        "action": "create_task",
+        "action_type": "inquiry",
+        "message": "اسم الموظف غير موجود أو غير واضح. حدد اسم موظف مسجل."
+      }
+    }
+  ],
+  "usage": {
+    "calls": 10,
+    "average_input_tokens": 2402.2,
+    "average_output_tokens": 105,
+    "input_tokens": 24022,
+    "output_tokens": 1050,
+    "sample_cost_usd": 0.023418,
+    "monthly_60000_messages_usd": 140.51
+  }
+}

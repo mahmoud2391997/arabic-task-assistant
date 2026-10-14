@@ -1,6 +1,8 @@
 import { policy, riyadhToday } from './language.js';
 
-export class AIError extends Error {}
+export class AIError extends Error {
+  constructor(message, status, retryAfter) {super(message);this.status=status;this.retryAfter=retryAfter;}
+}
 
 export function validateIntent(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AIError('Invalid AI output');
@@ -37,7 +39,7 @@ export const intentSchema={type:'object',additionalProperties:false,properties:{
 }};
 intentSchema.required=Object.keys(intentSchema.properties);
 
-export function createAI({ baseURL, apiKey, model, timeoutMs = 20000, fetchImpl = fetch }) {
+export function createAI({ baseURL, apiKey, model, timeoutMs = 20000, fetchImpl = fetch, onUsage }) {
   if (!baseURL || !apiKey || !model) throw new Error('Set GROQ_API_KEY (or AI_API_KEY), AI_BASE_URL and AI_MODEL in .env');
   const url = new URL(`${baseURL.replace(/\/$/, '')}/chat/completions`);
   if (url.protocol !== 'https:' && !['localhost','127.0.0.1','[::1]'].includes(url.hostname)) throw new Error('Remote AI API must use HTTPS');
@@ -84,13 +86,22 @@ Policy clauses: ${JSON.stringify(policy.map((text,i) => ({id:i+1,text})))}.`;
         method: 'POST', signal: AbortSignal.timeout(timeoutMs),
         headers: { 'Content-Type':'application/json', Authorization:`Bearer ${apiKey}` },
         body: JSON.stringify({ model, temperature:0, max_tokens:600,
+          ...(url.hostname==='api.groq.com'&&model==='qwen/qwen3.8-27b'?{reasoning_effort:'none'}:{}),
           response_format:url.hostname==='api.groq.com' && ['qwen/qwen3.8-27b','openai/gpt-oss-20b','openai/gpt-oss-120b'].includes(model)
             ? {type:'json_schema',json_schema:{name:'employee_intent',strict:true,schema:intentSchema}} : {type:'json_object'},
           messages:[{ role:'system', content:system },...history.filter(m=>['user','assistant'].includes(m?.role)&&typeof m.content==='string').slice(-6).map(m=>({role:m.role,content:m.content.slice(0,1200)})),{ role:'user', content:message }] }),
       });
-      if (!response.ok) throw new AIError(`AI provider returned HTTP ${response.status}`);
+      if (!response.ok) {
+        const seconds=Number(response.headers?.get('retry-after'));
+        throw new AIError(`AI provider returned HTTP ${response.status}`,response.status,Number.isFinite(seconds)&&seconds>0?Math.ceil(seconds):undefined);
+      }
       const body = await response.json();
-      return validateIntent(JSON.parse(body.choices?.[0]?.message?.content));
+      const intent=validateIntent(JSON.parse(body.choices?.[0]?.message?.content));
+      if(typeof onUsage==='function'&&body.usage) {
+        const counts={input_tokens:body.usage.prompt_tokens,output_tokens:body.usage.completion_tokens};
+        if(Object.values(counts).every(n=>Number.isSafeInteger(n)&&n>=0)) {try{await onUsage(counts);}catch{/* Metrics must not prevent business execution. */}}
+      }
+      return intent;
     } catch (error) {
       if (error instanceof AIError) throw error;
       throw new AIError('AI provider unavailable or returned invalid JSON');

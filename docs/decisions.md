@@ -1,13 +1,45 @@
-# Design decisions
+# Design decisions and operating budget
 
-**Stack.** Node.js 22 uses native HTTP and fetch to keep the implementation small. PostgreSQL supports durable cloud storage, scoped SQL queries and transactional audit entries. `pg` is the only production package. Groq handles Arabic intent extraction with `qwen/qwen3.8-27b` in JSON mode. The provider adapter and model are configurable without changing business logic.
+Rules: [قواعد النظام المعتمدة](business-rules.md). Delivered/future capabilities: [capabilities](capabilities.md). Current verification: [assessment report](assessment-report.md).
 
-**Trust boundary.** AI returns proposed intent fields, not executable SQL, trusted identity, roles or answer prose. Code validates these fields and resolves employee names against PostgreSQL. Both the chat service and repository enforce authorization. Public deployments require token identity mapping; local evaluation accepts the provided user_id contract. Policy answers use only source clauses. This prevents invented answer text, while relevance and ambiguity still need live model evaluation.
+## Architecture and trust boundary
 
-**Dates and assumptions.** All business dates use Asia/Riyadh and the operating date. Relative day arithmetic is implemented in code; the model extracts relative tokens. Unspecified hour periods use 24-hour time, next weekdays exclude today, and العصر alone is 16:00. Friday becomes Saturday at the same time, with an Arabic explanation. Unknown employees or missing descriptions/dates/times require a new complete request: this version has no conversational memory. Multiple recipients or schedules should produce clarification. Task appointments now require working hours, including after a Friday shift. Status updates use the server clock and must happen on the due day before closing.
+Node.js 22, native HTTP/fetch, PostgreSQL through pg, and Vercel connection lifecycle support through @vercel/functions. Groq's configured Qwen model uses strict JSON Schema, with non-thinking mode for intent extraction. Alternate compatible models use JSON object mode and the same field validation. No hidden offline parser pretends to be a live AI result.
 
-**Monthly cost.** 100 employees × 20 messages/day × 30 days = 60,000 messages. Budgeting 900 input tokens and 150 output tokens per message gives 54 million input and 9 million output tokens. At hypothetical rates of $0.60/million input and $0.80/million output, inference would be $39.60/month. These are illustrative planning rates, not a current price quote or a promise of free access. Substitute the actual rates from the selected Groq account/model: cost = 54 × input rate + 9 × output rate. If operating 22 days/month, volume is 44,000 messages and the same illustrative calculation is $29.04. Add provider-specific database and server hosting charges (a planning allowance of $10–30/month); verify quotas and pricing with the chosen hosts. Measure real usage before committing a budget.
+The model proposes fields and policy IDs. It cannot issue SQL, grant roles, decide approvals or override the server clock. The application checks authenticated identity, database roles, task scope and policy rules; repository reads/creates enforce scope again. Mutations and audit commit together. Telegram update receipts preserve retry idempotency and per-chat sessions; the HTTP API remains stateless and has no client idempotency key.
 
-**One extra week.** Run live Arabic evaluations on the chosen model and improve ambiguous names/schedules; add conversation state for clarifications, verified JWT identity, rate limits, request deduplication, migrations, database backups and monitoring. Replace “latest” or moving model aliases with pinned versions when available. Add WhatsApp or Telegram only after the core authorization and identity contract is tested end to end. A larger policy corpus would require passage retrieval and stronger evidence matching.
+The source policy is six clauses. Later user-authorized business exceptions are recorded explicitly in the rules document and policy source. Answers are the exact selected clauses; unsupported information uses an explicit unknown answer. This prevents invented prose but does not prove perfect semantic relevance for every possible model input.
 
-**Validation limitations.** Automated tests mock the AI and use a PostgreSQL emulator by default. All five test groups also passed against a separate local PostgreSQL 17 test database. All ten live scenarios passed through Groq with the configured user key on October 13, 2026. The initial model was unavailable to this account, so the configuration now uses a text model verified through the authenticated Groq model list and a live extraction request. Docker must be running to use the local database/complete-stack commands.
+## Calendar and time choices
+
+Riyadh business time is independent of the host/client timezone. Relative dates are resolved in code. Friday shifts to Saturday at the same hour and is revalidated against Saturday's shorter day. Unqualified 1–7 uses the afternoon work context; explicit morning/24-hour values are respected. New task schedules cannot be backdated; status changes require the due day, an elapsed due time and actual working hours. Remote-work weeks start Saturday. No invented public holidays, leave balances or medical-report penalties.
+
+## Cost model — checked 14 October 2026
+
+Groq documents qwen/qwen3.8-27b at **$0.80 per million input tokens and $4.00 per million output tokens**. This is a preview model, so verify price/availability when budgeting. Sources: [model and pricing](https://console.groq.com/docs/model/qwen/qwen3.8-27b), [rate limits](https://console.groq.com/docs/rate-limits). Account-specific quotas and bills take precedence; free quotas are not an unlimited service commitment.
+
+For 100 employees × 20 messages per employee per day × 30 days = **60,000 messages/month**, let f be the fraction actually sent to AI and I/O the average billed input/output tokens including prompt and conversation history:
+
+`monthly AI USD = 60000 × f × (I × 0.80 + O × 4.00) / 1000000`
+
+| Assumption | Input/output tokens | AI cost/month, f=1 |
+|---|---:|---:|
+| Small stateless prompt | 900 / 150 | $79.20 |
+| Larger current-prompt planning envelope | 2500 / 200 | $168.00 |
+| Longer conversation envelope | 4000 / 300 | $264.00 |
+
+These are scenario assumptions, not measured invoices. The prompt now contains detailed policies, schema and examples, so the old 900-token estimate is not a safe single-point budget. For 22 operating days the same rows are $58.08, $123.20 and $193.60. If half of interactions use deterministic buttons/read commands (f=0.5), inference halves; measure the actual mix. Add a 20% inference contingency for billed invalid-output attempts and changes in input size. Rate-limited requests should not create business writes; retries can increase waiting time, and successful billed attempts must be included.
+
+A planning allowance of $20–50/month for hosting, database, monitoring/backups is **a budget assumption, not a supplier quote**. The middle scenario with 20% inference contingency plus this allowance is roughly $222–252/month at 30 operating days. Taxes, currency conversion, account subscriptions, scaling, storage/egress and human operational effort are excluded. Do not purchase or upgrade a plan from this document.
+
+Optional AI_USAGE_LOG=true logs numeric prompt/completion token counts only. It never logs employee names, messages, keys or connection strings. The clean-install assessment measured 10 successful calls: average 2,402.2 input and 105 output tokens. At the cited prices, this is $0.023418 for the sample and about $140.51/month if extrapolated to 60,000 AI calls, before hosting/contingency. This small stateless sample cannot establish production conversation costs. Callback logging failures cannot affect successful business execution. Limits such as requests/day and tokens/minute must be checked in the actual account before committing to 2,000 daily messages.
+
+## Provider failures
+
+An upstream 429 is returned as HTTP 429 with Retry-After and an exception message saying the request did not execute. Other provider failures remain 502; no fabricated intent is substituted. The demo retries only explicit pre-execution rate limits with bounded waits; it never retries a successful write or an arbitrary server error. Finite daily quota can still stop an evaluation and should be reported as a blocker, not hidden by a mock result.
+
+## Delivery limits and next week
+
+Telegram's current live demo identity mode was explicitly requested; it permits account selection by employee ID and must not be represented as verified employee identity. Secure-link mode and token-authenticated API are implemented/tested. GitHub CI/CD is configured but has external billing/credential prerequisites; manual authenticated CLI releases are the verified path. No claim that local services keep running while the Mac/Docker is off.
+
+The original personal voice recording, if required for submission, is made by the project owner. The bot can provide a written walkthrough, not a fabricated recording in the owner's identity. The seven-day development plan is in [capabilities](capabilities.md): evaluations, API sessions, safe approval disambiguation, identity/idempotency, migration/recovery, observability/capacity, and CI/delivery review.

@@ -24,7 +24,8 @@ export function databaseConfig(env = process.env) {
 export function createRuntime(env = process.env) {
   if (env.VERCEL && env.AUTH_MODE !== 'token') throw new Error('Set AUTH_MODE=token for Vercel deployment');
   const ai = createAI({baseURL:env.AI_BASE_URL || 'https://api.groq.com/openai/v1',
-    apiKey:env.GROQ_API_KEY || env.AI_API_KEY, model:env.AI_MODEL || 'qwen/qwen3.8-27b'});
+    apiKey:env.GROQ_API_KEY || env.AI_API_KEY, model:env.AI_MODEL || 'qwen/qwen3.8-27b',
+    onUsage:env.AI_USAGE_LOG==='true' ? counts=>console.log(JSON.stringify({event:'ai_usage',...counts})) : undefined});
   const pool = new pg.Pool(databaseConfig(env));
   if (env.VERCEL) attachDatabasePool(pool);
   pool.on('error', () => console.error('Idle database connection failed'));

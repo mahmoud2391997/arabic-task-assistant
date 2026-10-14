@@ -61,7 +61,13 @@ export function createHandler({ chat, authMode = 'demo', tokens = {}, health = a
       const result = await chat({user_id:body.user_id,message:body.message});
       send(res,result.action_type === 'rejection' || result.action === 'reject' ? 403 : 200,result);
     } catch (error) {
-      if (error instanceof AIError) return send(res,502,{action:'error',action_type:'exception',response_type:'clarification', reply:'تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'});
+      if (error instanceof AIError) {
+        if(error.status===429) {
+          res.setHeader?.('Retry-After',String(Math.min(error.retryAfter||30,3600)));
+          return send(res,429,{action:'error',action_type:'exception',reply:'وصلت خدمة الذكاء الاصطناعي إلى حد الاستخدام المؤقت. أعد المحاولة بعد قليل؛ لم يُنفّذ الطلب.'});
+        }
+        return send(res,502,{action:'error',action_type:'exception',reply:'تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'});
+      }
       if (error.message === 'OUTSIDE_WORKING_HOURS') return send(res,400,{action:'reject',action_type:'rejection',response_type:'rejection',reply:'الموعد خارج ساعات الدوام. حدد وقتاً خلال الدوام.'});
       if (error.message === 'FORBIDDEN') return send(res,403,{action:'reject',response_type:'rejection',reply:'لا تملك صلاحية تنفيذ هذا الطلب.'});
       // Do not log tokens, raw messages, connection strings, or provider error bodies.

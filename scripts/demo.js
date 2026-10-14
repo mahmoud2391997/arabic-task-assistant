@@ -1,22 +1,20 @@
 import { scenarios, scenarioExpected } from '../test/scenarios.js';
+import {demoRequest,scenarioPassed} from './demo-client.js';
+import {writeFile} from 'node:fs/promises';
 const baseURL = process.env.SERVER_URL || 'http://localhost:3000';
 const tokens = JSON.parse(process.env.AUTH_TOKENS_JSON || '{}');
 let failed = false;
+let createdForKhalid;
+const records=[];
 for (const scenario of scenarios) {
   const {id,user_id,message} = scenario;
   const expected = scenarioExpected(scenario);
-  const response = await fetch(`${baseURL}/chat`,{
-    method:'POST',headers:{'Content-Type':'application/json',
-      ...(tokens[user_id] ? {Authorization:`Bearer ${tokens[user_id]}`} : {})},
-    body:JSON.stringify({user_id,message}),
-  });
-  const result = await response.json();
-  let passed = (expected==='reject'?result.action_type==='rejection':expected==='clarify'?result.action_type==='inquiry':(expected==='reject'?result.action_type==='rejection':expected==='clarify'?result.action_type==='inquiry':result.action===expected));
-  if (id === 'T03') passed &&= result.rescheduled === true;
-  if (id === 'T05') passed &&= result.tasks?.some(t => t.assignee_id === 4 && t.description.includes('عرض السعر'));
-  if (id === 'T06') passed &&= result.policy_ids?.includes(2);
-  if (id === 'T07') passed &&= result.message?.includes('غير متوفرة');
+  const {response,result}=await demoRequest(`${baseURL}/chat`,{user_id,message},tokens[user_id]?{Authorization:`Bearer ${tokens[user_id]}`} : {});
+  if(id==='T01') createdForKhalid=result.task_id;
+  const passed=scenarioPassed(scenario,expected,response.status,result,createdForKhalid);
   failed ||= !passed;
-  console.log(JSON.stringify({id,passed,http_status:response.status,result},null,2));
+  const record={id,passed,http_status:response.status,result};records.push(record);
+  console.log(JSON.stringify(record,null,2));
 }
+if(process.env.DEMO_REPORT_PATH) await writeFile(process.env.DEMO_REPORT_PATH,JSON.stringify(records,null,2)+'\n',{mode:0o600});
 process.exitCode = failed ? 1 : 0;

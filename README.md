@@ -1,19 +1,40 @@
 # Arabic task assistant — Node.js + Groq + PostgreSQL
 
-Server for the supplied AI engineer exercise. `POST /chat` creates and updates tasks, handles employee requests and approvals, and answers from the six company policy clauses in Arabic. Data persists in PostgreSQL and can be hosted in the cloud. No frontend is required.
+Server for the supplied AI engineer exercise. `POST /chat` creates and updates tasks, handles employee requests and approvals, and answers from the six company policy clauses in Arabic. Data persists in PostgreSQL and can be hosted in the cloud. Telegram is the conversational interface; no web frontend is required.
+
+**All current rules:** [قواعد النظام المعتمدة](docs/business-rules.md). **Capabilities and delivery scope:** [capabilities](docs/capabilities.md). **Evidence against the grading criteria:** [assessment](docs/assessment-report.md).
 
 ## Run
 
-Requires Node.js 22+, a PostgreSQL database and a Groq API key.
+### Docker (recommended)
 
-1. `cp .env.example .env` and fill `GROQ_API_KEY` and `DATABASE_URL`.
-2. `npm ci && npm start`
+Requires Docker Desktop and a valid Groq key. Configure secrets, without editing source code:
 
-Tables and the six fictional employees are initialized automatically. A cloud PostgreSQL connection URL from your provider works with the same code; use the provider's TLS instructions. For verified TLS set `DATABASE_SSL=true`; optionally set `DATABASE_CA_FILE` to a certificate path. Do not disable certificate verification. Avoid conflicting `sslmode` parameters in the URL when using these explicit TLS options.
+```bash
+cp .env.example .env
+# Set GROQ_API_KEY in .env, then:
+docker compose up -d --build
+curl http://localhost:3000/health
+docker compose exec server npm run demo
+```
 
-The local Compose database is exposed on localhost port 5433 to avoid conflicting with an existing PostgreSQL instance. Change POSTGRES_PORT and DATABASE_URL together if needed.
+This starts PostgreSQL, initializes tables and six fictional employees, and runs Node.js 22. PostgreSQL is exposed only on localhost:5433, and the API on localhost:3000. SERVER_PORT and POSTGRES_PORT can change host ports without modifying Compose. Demo creates test tasks; use a dedicated evaluation stack/database.
 
-For local PostgreSQL, run `docker compose up -d db` before `npm start`. Alternatively, after creating `.env` with the Groq key, run the complete local stack with `docker compose up --build`. The Compose database credentials are local development defaults. Do not use them on a public database. For cloud deployment, deploy the Dockerfile and configure environment variables in your host's secret settings; Compose is optional and intended for local development.
+### Native Node.js alternative
+
+Requires Node.js 22, PostgreSQL and a valid Groq key:
+
+```bash
+cp .env.example .env
+# Set GROQ_API_KEY and DATABASE_URL in .env.
+docker compose up -d db
+npm ci
+npm start
+# In a second terminal:
+npm run demo
+```
+
+A cloud PostgreSQL URL works with the same code. For verified TLS set DATABASE_SSL=true; optionally set DATABASE_CA_FILE. Avoid conflicting sslmode URL parameters and never disable certificate verification. Compose credentials are local evaluation defaults, not public database credentials.
 
 Default AI settings:
 
@@ -38,14 +59,15 @@ Response shape (IDs and dates depend on the database and current day):
 ```json
 {
   "action": "create_task",
+  "action_type": "execution",
   "task_id": 1,
   "task": { "id": 1, "assignee_id": 4, "description": "يراجع عرض السعر", "due_at": "2026-10-15T07:00:00.000Z" },
   "rescheduled": false,
-  "reply": "تم تسجيل المهمة لخالد بتاريخ 2026-10-15 الساعة 10:00."
+  "message": "تم تسجيل المهمة لخالد بتاريخ 2026-10-15 الساعة 10:00."
 }
 ```
 
-Actions include `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `list_reports`, `decide_request`, `submit_report`, and `update_task`; unrecognized actions use `unknown`. Every JSON response includes `action`, `action_type` and `message`. Outcomes are `execution`, `rejection`, `postpone`, `inquiry`, and `exception`. The API omits legacy `reply`, `response_type` and internal request metadata. `/chat` accepts `prompt` or the existing `message`, with a positive integer `user_id` matching the bearer identity. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds. See [the integration contract](docs/integration-contract.md) for Telegram verification, sessions and CI/CD.
+Actions include `create_task`, `list_tasks`, `policy_answer`, `create_request`, `list_requests`, `list_approvals`, `list_reports`, `decide_request`, `submit_report`, `update_task`, `edit_task`, `view_report`, `review_report`, and `list_audit`; unrecognized actions use `unknown`. Every JSON response includes `action`, `action_type` and `message`. Outcomes are `execution`, `rejection`, `postpone`, `inquiry`, and `exception`. The API omits legacy `reply`, `response_type` and internal request metadata. `/chat` accepts `prompt` or the existing `message`, with a positive integer `user_id` matching the bearer identity. `GET /health` checks PostgreSQL. Requests are limited to 16 KiB, messages to 4000 characters, and AI requests to 20 seconds. See [the integration contract](docs/integration-contract.md) for Telegram verification, sessions and CI/CD.
 
 ## Identity and permissions
 
@@ -68,7 +90,7 @@ Roles are loaded from PostgreSQL, never from messages or model output:
 
 ## Dates and policy
 
-The server resolves dates in `Asia/Riyadh`, stores timestamps as PostgreSQL `TIMESTAMPTZ`, and displays Riyadh time. `بكرة`, `بعد بكرة`, next weekdays and ISO dates are supported. A weekday means its next occurrence strictly after today, including “الجاي”. An explicit hour without AM/PM uses 24-hour time. “العصر” alone means 16:00; “1 الظهر” means 13:00. Missing or ambiguous details trigger clarification. Friday tasks move to Saturday at the same hour. Task appointments are limited to 08:00–before 16:00 Sunday–Thursday and 08:00–before 12:00 Saturday. Hours are checked again after Friday shifts. Status updates must execute during working hours on the task’s due day, using the server clock.
+The server resolves dates in `Asia/Riyadh`, stores timestamps as PostgreSQL `TIMESTAMPTZ`, and displays Riyadh time. `بكرة`, `بعد بكرة`, next weekdays and ISO dates are supported. A weekday means its next occurrence strictly after today, including “الجاي”. Unqualified hours 1–7 use the afternoon/evening work context (13:00–19:00); 8–11 mean morning and 12 means noon. Explicit periods and zero-padded 03:00 are respected. “العصر” alone means 16:00; “1 الظهر” means 13:00. Missing or ambiguous details trigger clarification. Friday tasks move to Saturday at the same hour. Task appointments are limited to 08:00–before 16:00 Sunday–Thursday and 08:00–before 12:00 Saturday. Hours are checked again after Friday shifts. Status updates must execute during working hours on the task’s due day, at or after its scheduled time, using the server clock. New appointments and schedule edits cannot be earlier than the server time.
 
 Groq extracts an intent and selects policy clause IDs. The application returns the exact selected source clauses; it does not use free-form generated policy answers. Unknown information returns “هذه المعلومة غير متوفرة في نص سياسة الشركة.” Relevance depends on model classification and is checked by the live demo. Unsupported details must be marked unknown in the extraction prompt.
 
@@ -79,11 +101,21 @@ Automated coverage includes PostgreSQL permissions, all six policy answers, offi
 ```bash
 npm test
 npm run demo
+
+# Docker-only alternative; no host Node.js needed for the live demo:
+docker compose exec server npm run demo
 ```
 
 Tests use a PostgreSQL emulator and mock AI results by default; they cover all ten supplied scenarios in order, date resolution, SQL permissions, prompt-role injection, HTTP authentication and provider failure. They do **not** establish live model accuracy. `npm run demo` sends the actual ten Arabic messages to the running server and calls Groq with your key. It creates real demo tasks on each run; use a separate evaluation database.
 
-To run the tests against actual PostgreSQL, set `TEST_DATABASE_URL` to a **disposable test database** before `npm test`. Tests drop and recreate the three application tables. Never point this variable at production.
+For real PostgreSQL workflow/Telegram tests, create a disposable `assistant_test` database and run:
+
+```bash
+WORKFLOW_TEST_DATABASE_URL=postgresql://assistant:assistant@localhost:5433/assistant_test \
+TELEGRAM_TEST_DATABASE_URL=postgresql://assistant:assistant@localhost:5433/assistant_test npm test
+```
+
+These tests create/drop isolated temporary schemas. The optional legacy `TEST_DATABASE_URL` tests drop application tables: never point any test setting at production.
 
 See [design decisions](docs/decisions.md) for assumptions, cost calculation and next steps. The assignment's personal voice recording remains something you should record yourself; `npm run demo` provides the ten-message walkthrough.
 
@@ -91,6 +123,10 @@ See [design decisions](docs/decisions.md) for assumptions, cost calculation and 
 
 See [deployment instructions](docs/deployment.md). Cloud routes use the same chat and authorization implementation as the local server. Vercel deployments require token mode, and Neon schema initialization runs once before serving traffic.
 
-Live cloud verification also passed all ten scenarios. See [cloud deployment and test instructions](docs/deployment.md).
+Protected cloud health, API authentication and Telegram configuration are smoke-tested after deployment. The current ten-message model evidence is recorded in the assessment report; historical checks are dated in deployment documentation.
 
 See [Telegram setup](docs/telegram.md) and [request workflows](docs/workflows.md).
+
+## Provider limits and cost
+
+Groq rate limits return HTTP 429 with Retry-After before any business write. The live demo waits and retries those responses up to three times, but never retries successful mutations or unknown failures. A finite quota remains an external limit. Optional `AI_USAGE_LOG=true` writes only numeric input/output token counts; no message, identity or key is logged. See [cost and design decisions](docs/decisions.md) for current cited rates, measured/assumed volumes, hosting allowances and an extra-week plan.
