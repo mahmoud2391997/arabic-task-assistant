@@ -67,7 +67,7 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   return {reply:'تم تسجيل الخروج. أرسل رقم الموظف للدخول مجدداً.',action_type:'execution'};
  }
  async function process(client,m,callback) {
-  const id=m.from.id;let selectedAction,selectedRequestType;let text=(m.text||m.caption||'').trim();const s=await session(client,id);
+  const id=m.from.id;let selectedAction,selectedRequestType,selectedRecordId;let text=(m.text||m.caption||'').trim();const s=await session(client,id);
   const start=text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(\S+))?$/);
   if(start?.[1]) {
    const code=start[1];if(!/^[A-Za-z0-9_-]{32}$/.test(code)) return {reply:'رابط الربط غير صالح أو انتهت صلاحيته.'};
@@ -87,12 +87,12 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
    await client.query('DELETE FROM telegram_conversations WHERE telegram_id=$1',[id]);return {reply:'انتهت جلسة المحادثة. '+onboarding};
   }
   if(callback) {
-   const [revision,key]=callback.data?.split(':')||[];
+   const [revision,key,recordId]=callback.data?.split(':')||[];
    const actor=s.active_user_id ? await new Store(client,true).user(s.active_user_id) : null;
-   const selected=[...actions,...requestActions].find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
+   const selected=key==='reportfile'&&actor?.role==='supervisor'&&/^[1-9][0-9]*$/.test(recordId||'') ? ['reportfile','عرض التقرير','اعرض التقرير الطبي',['supervisor']] : [...actions,...requestActions].find(a=>a[0]===key&&(!a[3]||a[3].includes(actor?.role)));
    if(s.awaiting_id||!actor||revision!==s.revision||!selected) return {reply:'هذا الزر قديم أو غير متاح لحسابك. أرسل رقم الموظف أو ابدأ المحادثة مجدداً.'};
    if(key==='logout') return logout(client,id,s);
-   text=selected[2];selectedAction={create:'create_task',new:'create_request',annual:'create_request',remote:'create_request',expense:'create_request',sick:'create_request',update:'update_task',report:'submit_report',decision:'decide_request'}[key];selectedRequestType={sick:'sick_leave',annual:'annual_leave',remote:'remote_work',expense:'expense'}[key];
+   text=selected[2];selectedAction={create:'create_task',new:'create_request',annual:'create_request',remote:'create_request',expense:'create_request',sick:'create_request',update:'update_task',report:'submit_report',reportfile:'view_report',decision:'decide_request'}[key];selectedRecordId=key==='reportfile'?Number(recordId):undefined;selectedRequestType={sick:'sick_leave',annual:'annual_leave',remote:'remote_work',expense:'expense'}[key];
   }
   if(!s.active_user_id||s.awaiting_id) {
    // Public policy remains available without disclosing employees or tasks.
@@ -107,14 +107,19 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
   const previous=(await client.query('SELECT messages FROM telegram_conversations WHERE telegram_id=$1 AND employee_id=$2',[id,s.active_user_id])).rows[0]?.messages||[];
   const history=Array.isArray(previous)?previous.slice(-6):[];
   const incoming=m.document||(m.photo?.length?{file_id:m.photo.at(-1).file_id,file_size:m.photo.at(-1).file_size,mime_type:'image/jpeg'}:undefined);
-  const attachment=incoming?{file_id:incoming.file_id,file_size:incoming.file_size,mime_type:incoming.mime_type}:undefined;
+  const attachment=incoming?{file_id:incoming.file_id,file_size:incoming.file_size,mime_type:incoming.mime_type,media_type:m.document?'document':'photo'}:undefined;
   const document=attachment;
   if(!text&&attachment) text=s.current_action==='submit_report'?'أرفق التقرير الطبي':'أرسلت مرفقاً';
-  const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType,requireLeaveRange:true});
+  const result=await createChat({store:new Store(client,true),ai,clock})({user_id:s.active_user_id,message:text,document,history,selectedAction,selectedRequestType,selectedRecordId,requireLeaveRange:true});
   const messages=[...history,{role:'user',content:text.slice(0,1200)},{role:'assistant',content:result.message.slice(0,1200)}].slice(-6);
   await client.query('INSERT INTO telegram_conversations (telegram_id,employee_id,messages) VALUES ($1,$2,$3) ON CONFLICT (telegram_id) DO UPDATE SET employee_id=EXCLUDED.employee_id,messages=EXCLUDED.messages',[id,s.active_user_id,JSON.stringify(messages)]);
   await client.query('UPDATE telegram_sessions SET current_action=$1,expires_at=$2 WHERE telegram_id=$3',[result.action_type==='inquiry'?result.action:null,new Date(clock().getTime()+86400000),id]);
-  const actor=await new Store(client,true).user(s.active_user_id);return {...result,menu:result.action==='create_request'&&result.action_type==='inquiry'&&!result.request_type?requestKeyboard(s.revision):keyboard(actor,s.revision)};
+  const actor=await new Store(client,true).user(s.active_user_id);
+  if(result.action==='list_reports'&&result.requests?.some(r=>r.report_available)) {
+    const menu=keyboard(actor,s.revision);menu.inline_keyboard.unshift(...result.requests.filter(r=>r.report_available).map(r=>[{text:`عرض التقرير — ${r.employee_name} #${r.id}`,callback_data:`${s.revision}:reportfile:${r.id}`} ]));
+    return {...result,menu};
+  }
+  return {...result,menu:result.action==='create_request'&&result.action_type==='inquiry'&&!result.request_type?requestKeyboard(s.revision):keyboard(actor,s.revision)};
  }
  return {
   authorize(value) {if(typeof value!=='string') return false;const a=Buffer.from(value),b=Buffer.from(secret);return a.length===b.length&&timingSafeEqual(a,b);},
@@ -128,12 +133,15 @@ export function createTelegram({pool,ai,token,secret,username,identityMode='secu
    try {
     client=await pool.connect();await client.query('BEGIN');
     const inserted=(await client.query('INSERT INTO telegram_updates (update_id) VALUES ($1) ON CONFLICT (update_id) DO NOTHING RETURNING update_id',[update.update_id])).rows.length;
-    if(inserted) {result=classifyResponse(await process(client,m,callback));await client.query('UPDATE telegram_updates SET reply=$1,response_type=$2,menu=$3 WHERE update_id=$4',[result.message,result.response_type,JSON.stringify(result.menu||null),update.update_id]);}
-    else {const row=(await client.query('SELECT reply,menu FROM telegram_updates WHERE update_id=$1',[update.update_id])).rows[0];result={message:row?.reply,menu:row?.menu};}
+    if(inserted) {result=classifyResponse(await process(client,m,callback));await client.query('UPDATE telegram_updates SET reply=$1,response_type=$2,menu=$3,documents=$5 WHERE update_id=$4',[result.message,result.response_type,JSON.stringify(result.menu||null),update.update_id,JSON.stringify(result.documents||null)]);}
+    else {const row=(await client.query('SELECT reply,menu,documents FROM telegram_updates WHERE update_id=$1',[update.update_id])).rows[0];result={message:row?.reply,menu:row?.menu,documents:row?.documents};
+      if(callback) {const current=await session(client,m.from.id);if(current.awaiting_id||current.revision!==callback.data.split(':')[0]||new Date(current.expires_at)<=clock()) result={message:'هذا الزر قديم أو غير متاح لحسابك. أرسل رقم الموظف أو ابدأ المحادثة مجدداً.'};}
+    }
     await client.query('COMMIT');
    }catch(error) {if(client) await client.query('ROLLBACK').catch(()=>{});result={message:'تعذر تنفيذ الطلب الآن. حاول مرة أخرى.'};}
    finally {client?.release();}
    if(callback) await api('answerCallbackQuery',{callback_query_id:callback.id}).catch(()=>{});
+   for(const document of result?.documents||[]) {const photo=document.media_type==='photo';await api(photo?'sendPhoto':'sendDocument',{chat_id:m.chat.id,[photo?'photo':'document']:document.file_id,caption:document.caption});}
    if(result?.message) {const chars=Array.from(result.message);for(let i=0;i<chars.length;i+=3500) await api('sendMessage',{chat_id:m.chat.id,text:chars.slice(i,i+3500).join(''),...(i+3500>=chars.length&&result.menu?{reply_markup:result.menu}:{})});}
   },
  };

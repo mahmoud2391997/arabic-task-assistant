@@ -29,7 +29,7 @@ async function approver(client,actor,type,amount) {
   return result.rows[0];
 }
 function publicRequest(row,now) {
-  const result={...row};delete result.report_file_id;
+  const result={...row,report_available:Boolean(row.report_file_id)};delete result.report_file_id;
   if(result.request_date) result.request_date=dateOnly(result.request_date);
   if(result.end_date) result.end_date=dateOnly(result.end_date);
   if(result.report_deadline) result.report_deadline=dateOnly(result.report_deadline);
@@ -97,6 +97,15 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
         ? `تم تسجيل العودة من الإجازة المرضية #${row.id}، بدون طلب موافقة مسبقة. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق التقرير الطبي هنا خلال يومين كحد أقصى من العودة.${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
         : `تم تقديم طلب ${names[type]} #${row.id} إلى صندوق طلبات ${reviewer.name}. الطلب بانتظار موافقته، ولم يُعتمد بعد.`};
     }
+    if(intent.action==='view_report') {
+      if(!Number.isSafeInteger(intent.record_id)) throw new WorkflowError('اختر التقرير الطبي الذي تريد عرضه.');
+      const row=(await client.query('SELECT * FROM employee_requests WHERE id=$1 FOR SHARE',[intent.record_id])).rows[0];
+      const owner=row?await employee(client,row.employee_id):null;
+      if(!row||row.request_type!=='sick_leave'||!(row.employee_id===actor.id||(actor.role==='supervisor'&&row.monitor_id===actor.id&&owner.department===actor.department))) throw new WorkflowError('لا تملك صلاحية عرض هذا التقرير الطبي.',true);
+      if(!row.report_file_id) throw new WorkflowError('لم يتم إرفاق التقرير الطبي بعد.');
+      await audit(client,actor.id,'view_report',{request_id:row.id});
+      return {action:'view_report',reply:`التقرير الطبي الخاص بـ${owner.name}.`,data:{report_id:row.id,available:true},documents:[{file_id:row.report_file_id,media_type:row.report_media_type,caption:`التقرير الطبي — ${owner.name}${row.request_date?` — العودة ${dateOnly(row.request_date)}`:''}`}]};
+    }
     if(intent.action==='decide_request') {
       const row=(await client.query('SELECT * FROM employee_requests WHERE id=$1 FOR UPDATE',[intent.record_id])).rows[0];
       if(!row||row.approver_id!==actor.id) throw new WorkflowError('لا تملك صلاحية اعتماد أو رفض هذا الطلب.',true);
@@ -134,7 +143,7 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       if(!document.file_id||typeof document.file_id!=='string'||document.file_id.length>1024||!['application/pdf','image/jpeg','image/png'].includes(document.mime_type)||!Number.isSafeInteger(document.file_size)||document.file_size<1||document.file_size>10*1024*1024) throw new WorkflowError('أرفق التقرير الطبي كملف PDF أو صورة JPEG/PNG لا تتجاوز 10 ميجابايت.');
       if(row.report_received_at) throw new WorkflowError('تم تسجيل وصول التقرير لهذا الطلب بالفعل.',false,true);
       const late=row.report_deadline?riyadhToday(now)>dateOnly(row.report_deadline):null;
-      const updated=(await client.query('UPDATE employee_requests SET report_file_id=$1,report_received_at=$2,status=$3 WHERE id=$4 RETURNING *',[document.file_id,now,late?'report_received_late':'report_received',row.id])).rows[0];
+      const updated=(await client.query('UPDATE employee_requests SET report_file_id=$1,report_received_at=$2,status=$3,report_media_type=$5 WHERE id=$4 RETURNING *',[document.file_id,now,late?'report_received_late':'report_received',row.id,document.media_type==='photo'?'photo':'document'])).rows[0];
       await audit(client,actor.id,'submit_report',{request_id:row.id,late});
       return {action:'submit_report',request:publicRequest(updated,now),reply:`تم استلام تقريرك الطبي${row.request_date?` عن العودة بتاريخ ${dateOnly(row.request_date)}`:""}.${late?' وصل بعد المهلة؛ السياسة لا تحدد عقوبة.':''} المشرف يتابع التقرير ويراجع فترة الإجازة وتاريخ العودة داخله. استلام الملف لا يعني التحقق من صحة محتواه الطبي.`};
     }

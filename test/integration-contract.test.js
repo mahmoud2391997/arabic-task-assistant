@@ -170,3 +170,21 @@ test('public API response contains no duplicate legacy or internal fields',async
  assert.deepEqual(result,{action:'list_tasks',action_type:'execution',message:'لا توجد مهام',tasks:[]});
  assert.deepEqual(apiResponse({error:'Invalid JSON'}),{action:'unknown',action_type:'rejection',message:'Invalid JSON'});
 });
+
+test('supervisor follow-up has file buttons and only the assigned supervisor can receive the report',async()=>{
+ const {executeWorkflow}=await import('../src/workflows.js');const f=await fixture();
+ try {
+  const store=new Store(f.pool),now=new Date('2026-10-14T09:00:00Z');
+  const saved=await executeWorkflow({store,userId:5,now,intent:{...base,action:'create_request',request_type:'sick_leave',date_kind:'today'}});
+  await executeWorkflow({store,userId:5,now,intent:{...base,action:'submit_report',record_id:saved.request.id},document:{file_id:'private-report',file_size:512,mime_type:'application/pdf'}});
+  const greeting=await f.grant(6);const menu=await f.callback(1,greeting.reply_markup.inline_keyboard.flat().find(b=>b.text==='متابعة التقارير الطبية').callback_data);
+  const file=menu.reply_markup.inline_keyboard.flat().find(b=>b.text.startsWith('عرض التقرير'));
+  assert.ok(file);await f.callback(2,file.callback_data);
+  assert.equal(f.sent.filter(m=>m.method==='sendDocument').at(-1).document,'private-report');
+  const other=await f.grant(2);const revision=other.reply_markup.inline_keyboard[0][0].callback_data.split(':')[0];const before=f.sent.filter(m=>m.method==='sendDocument').length;
+  assert.match((await f.callback(3,`${revision}:reportfile:${saved.request.id}`)).text,/لا تملك صلاحية/);
+  assert.equal(f.sent.filter(m=>m.method==='sendDocument').length,before);
+  await f.callback(2,file.callback_data);assert.equal(f.sent.filter(m=>m.method==='sendDocument').length,before);
+  const {apiResponse}=await import('../src/responses.js');const result=await executeWorkflow({store,userId:6,now,intent:{...base,action:'view_report',record_id:saved.request.id}});assert.equal(apiResponse(result).documents,undefined);
+ }finally{await f.pool.end();}
+});

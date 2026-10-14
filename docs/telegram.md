@@ -35,3 +35,5 @@ Task assignments by a supervisor or manager create a persisted recipient notific
 API responses also include newly assigned task notifications through the same processor, in the message and a notifications array. A notification shown through API is no longer new in Telegram, and vice versa. Tasks remain available independently of their notification status.
 
 تسجيل الخروج clears the active account, pending action, binding and conversation history, and invalidates old buttons. Verified account grants remain available for future identification. Medical reports require a recorded return before upload.
+
+Assigned supervisors can open received medical reports using the عرض التقرير button beneath متابعة التقارير الطبية. The server rechecks report ownership, assigned supervisor and department. Telegram receives the original PDF/document or photo without exposing bot credentials or file handles in the public API.

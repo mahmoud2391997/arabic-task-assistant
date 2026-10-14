@@ -23,12 +23,12 @@ function commandIntent(message) {
 const dateTokens = { today:'اليوم', tomorrow:'بكرة', day_after_tomorrow:'بعد بكرة' };
 const weekdays = ['الاحد','الاثنين','الثلاثاء','الاربعاء','الخميس','الجمعة','السبت'];
 export function createChat({ store, ai, clock = () => new Date() }) {
-  const execute = async ({ user_id, message, document, history=[], selectedAction, selectedRequestType, requireLeaveRange=false }) => {
+  const execute = async ({ user_id, message, document, history=[], selectedAction, selectedRequestType, selectedRecordId, requireLeaveRange=false }) => {
     const actor = await store.user(user_id);
     if (!actor) return { action:'reject', reply:'المستخدم غير موجود.' };
     const users = await store.users();
     const now = clock();
-    const intent = validateIntent(selectedAction ? {action:selectedAction,request_type:selectedRequestType||'',target:'self',assignee_name:'',description:'',date_kind:selectedRequestType==='sick_leave'?'today':'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]} : commandIntent(message) || await ai({ message, users, now, history }));
+    const intent = validateIntent(selectedAction ? {action:selectedAction,record_id:selectedRecordId??null,request_type:selectedRequestType||'',target:'self',assignee_name:'',description:'',date_kind:selectedRequestType==='sick_leave'?'today':'unknown',date_value:'',time:'',policy_supported:false,policy_ids:[]} : commandIntent(message) || await ai({ message, users, now, history }));
     const finish = async result => {
       result.request_type=intent.request_type;
       result.request_action=intent.action==='clarify' ? 'unknown' : intent.action==='policy_question' ? 'policy_answer' : intent.action;
@@ -41,7 +41,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     if(intent.action==='list_audit') {
       if(actor.role==='employee') return reject();
       const entries=await store.auditEntries(actor.id);
-      const labels={create_task:'إنشاء مهمة',update_task:'تحديث مهمة',create_request:'تقديم طلب أو تسجيل عودة',decide_request:'قرار اعتماد أو رفض',submit_report:'إرفاق تقرير طبي',list_tasks:'عرض المهام',list_requests:'عرض الطلبات',list_approvals:'عرض الاعتمادات',list_reports:'متابعة التقارير',list_audit:'عرض سجل العمليات',reject:'رفض تنفيذ',clarify:'طلب توضيح',policy_answer:'عرض السياسة',telegram_identity:'اختيار الحساب',telegram_link:'ربط الحساب'};
+      const labels={create_task:'إنشاء مهمة',update_task:'تحديث مهمة',create_request:'تقديم طلب أو تسجيل عودة',decide_request:'قرار اعتماد أو رفض',view_report:'عرض تقرير طبي',submit_report:'إرفاق تقرير طبي',list_tasks:'عرض المهام',list_requests:'عرض الطلبات',list_approvals:'عرض الاعتمادات',list_reports:'متابعة التقارير',list_audit:'عرض سجل العمليات',reject:'رفض تنفيذ',clarify:'طلب توضيح',policy_answer:'عرض السياسة',telegram_identity:'اختيار الحساب',telegram_link:'ربط الحساب'};
       const format=new Intl.DateTimeFormat('ar-SA',{timeZone:'Asia/Riyadh',dateStyle:'short',timeStyle:'short',calendar:'gregory'});
       return finish({action:'list_audit',entries,reply:entries.length?'آخر عمليات '+(actor.role==='manager'?'الشركة':'قسمك')+':\n'+entries.map(e=>`${format.format(new Date(e.created_at))} — ${e.actor_name||'النظام'} — ${labels[e.action]||'عملية مسجلة'}${e.details.task_id?` — المهمة #${e.details.task_id}`:''}${e.details.request_id?` — الطلب #${e.details.request_id}`:''}`).join('\n'):'لا توجد عمليات في النطاق المسموح.'});
     }
@@ -50,7 +50,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
       return finish({ action:'policy_answer', policy_ids: intent.policy_supported ? ids : [],
         reply: intent.policy_supported && ids.length ? ids.map(id => policy[id-1]).join('\n') : 'هذه المعلومة غير متوفرة في نص سياسة الشركة.' });
     }
-    if (['create_request','list_requests','list_approvals','list_reports','decide_request','submit_report','update_task'].includes(intent.action)) {
+    if (['create_request','list_requests','list_approvals','list_reports','decide_request','submit_report','view_report','update_task'].includes(intent.action)) {
       try {return await executeWorkflow({store,userId:actor.id,intent,now,document,requireLeaveRange});}
       catch(error) {
         if (!(error instanceof WorkflowError)) throw error;
