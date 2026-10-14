@@ -35,6 +35,8 @@ test('T01–T10 business scenarios, with mocked AI and SQL-backed store', async 
     assert.match(results[2].reply,/الجمعة.*السبت/);
     assert.equal(results[4].tasks.length,1);
     assert.equal(results[4].tasks[0].id,results[0].task_id);
+    assert.equal(results[4].tasks[0].assignee_name,'خالد');
+    assert.match(results[4].message,/المسند إليه: خالد/);
     assert.equal(results[5].reply,policy[1]);
     assert.match(results[6].reply,/غير متوفرة/);
     assert.equal(results[8].rescheduled,true);assert.equal(new Date(results[8].task.due_at).toISOString(),'2026-10-17T10:00:00.000Z');
@@ -193,5 +195,19 @@ test('creating a task earlier today cannot persist a past appointment',async()=>
  const {pool,store}=await setup();try {
  const chat=createChat({store,clock:()=>new Date('2026-10-14T09:00:00Z'),ai:async()=>({...base,action:'create_task',description:'مراجعة تقرير',date_kind:'today',time:'10:00'})});
  const result=await chat({user_id:3,message:'سجل لي مراجعة تقرير اليوم الساعة 10 صباحا'});assert.equal(result.action_type,'rejection');assert.match(result.message,/الوقت الحالي/);assert.equal((await store.list(3)).length,0);
+ }finally{await pool.end();}
+});
+
+test('department and company task lists identify every assignee without widening scope',async()=>{
+ const {pool,store}=await setup();try {
+  await store.create(2,3,'مهمة فهد','2026-10-15T10:00:00+03:00');
+  await store.create(2,4,'مهمة خالد','2026-10-15T11:00:00+03:00');
+  await store.create(1,5,'مهمة نورة','2026-10-15T12:00:00+03:00');
+  const chat=createChat({store,clock:()=>now,ai:async({message})=>({...base,action:'list_tasks',target:message==='القسم'?'department':'company'})});
+  const department=await chat({user_id:2,message:'القسم'});
+  assert.deepEqual(department.tasks.map(t=>t.assignee_name),['فهد','خالد']);
+  assert.match(department.message,/المسند إليه: فهد/);assert.match(department.message,/المسند إليه: خالد/);assert.doesNotMatch(department.message,/نورة/);
+  const company=await chat({user_id:1,message:'الشركة'});
+  assert.deepEqual(company.tasks.map(t=>t.assignee_name),['فهد','خالد','نورة']);assert.match(company.message,/المسند إليه: نورة/);
  }finally{await pool.end();}
 });

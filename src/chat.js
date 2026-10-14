@@ -69,10 +69,11 @@ export function createChat({ store, ai, clock = () => new Date() }) {
       if (intent.target === 'company' && actor.role !== 'manager') return reject();
       if (intent.target === 'department' && actor.role === 'employee') return reject();
       if (target && !canAccess(actor, target)) return reject();
-      const tasks = await store.list(actor.id, target?.id, !target, intent.target === 'department');
+      const tasks = (await store.list(actor.id, target?.id, !target, intent.target === 'department')).map(task => ({...task,assignee_name:users.find(user=>user.id===task.assignee_id)?.name || `موظف #${task.assignee_id}`}));
       return finish({ action:'list_tasks', tasks, reply: tasks.length ? tasks.map(t => {
-        const owner = users.find(u => u.id === t.assignee_id);
-        return `#${t.id} ${owner.name}: ${t.description} — ${new Intl.DateTimeFormat('ar-SA', {timeZone:'Asia/Riyadh', dateStyle:'short', timeStyle:'short', calendar:'gregory'}).format(new Date(t.due_at))}`;
+        return `#${t.id} ${t.description}
+المسند إليه: ${t.assignee_name}
+الموعد: ${new Intl.DateTimeFormat('ar-SA', {timeZone:'Asia/Riyadh', dateStyle:'short', timeStyle:'short', calendar:'gregory'}).format(new Date(t.due_at))}`;
       }).join('\n') : 'لا توجد مهام في النطاق المطلوب.' });
     }
     if (!target) return clarify('حدد موظفاً واحداً لإسناد المهمة.');
