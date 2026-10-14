@@ -1,0 +1,243 @@
+{
+	"info": {
+		"_postman_id": "task-assistant-api-collection",
+		"name": "Task Assistant API",
+		"description": "API collection for Arabic Task Assistant - Node.js + Groq + PostgreSQL",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": ["{{base_url}}"],
+					"path": ["health"]
+				},
+				"description": "Check PostgreSQL connection status"
+			}
+		},
+		{
+			"name": "Create Task",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"سجّل مهمة لخالد بكرة الساعة 10 يراجع عرض السعر\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "Create a new task for an employee"
+			}
+		},
+		{
+			"name": "List Tasks",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"عرض قائمة المهام\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "List tasks for the current user"
+			}
+		},
+		{
+			"name": "Update Task",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"عدّل المهمة رقم 1 إلى الساعة 2\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "Update an existing task"
+			}
+		},
+		{
+			"name": "Policy Query - Working Hours",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"ما هي ساعات العمل؟\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "Query company policy about working hours"
+			}
+		},
+		{
+			"name": "Policy Query - Remote Work",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"ما هي سياسة العمل عن بعد؟\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "Query company policy about remote work"
+			}
+		},
+		{
+			"name": "Create Request",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"أريد طلب إجازة لمدة ثلاثة أيام\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "Create a new request (leave, remote work, etc.)"
+			}
+		},
+		{
+			"name": "List Requests",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"عرض قائمة الطلبات\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "List pending requests"
+			}
+		},
+		{
+			"name": "Approve Request",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": 3,\n  \"message\": \"وافق على الطلب رقم 1\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "Approve a request (requires supervisor/manager role)"
+			}
+		},
+		{
+			"name": "Submit Report",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"قدم تقرير طبي للمرض\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "Submit a medical or other report"
+			}
+		},
+		{
+			"name": "List Reports",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"user_id\": {{user_id}},\n  \"message\": \"عرض قائمة التقارير\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/chat",
+					"host": ["{{base_url}}"],
+					"path": ["chat"]
+				},
+				"description": "List submitted reports"
+			}
+		}
+	]
+}
