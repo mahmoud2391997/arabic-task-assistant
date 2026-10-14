@@ -211,3 +211,22 @@ test('department and company task lists identify every assignee without widening
   assert.deepEqual(company.tasks.map(t=>t.assignee_name),['فهد','خالد','نورة']);assert.match(company.message,/المسند إليه: نورة/);
  }finally{await pool.end();}
 });
+
+test('multi-assignee creation validates all names and scopes before saving, deduplicates names and shifts Friday together',async()=>{
+ const {pool,store}=await setup();try {
+  let names=['فهد','خالد','فهد'];
+  const chat=createChat({store,clock:()=>now,ai:async()=>({...base,action:'create_task',target:'person',assignee_names:names,description:'مراجعة التقرير',date_kind:'weekday',date_value:'الجمعة',time:'13:00'})});
+  const created=await chat({user_id:2,message:'سجل مهمة لفهد وخالد الجمعة الساعة 1 الظهر مراجعة التقرير'});
+  assert.equal(created.action_type,'postpone');assert.equal(created.tasks.length,2);
+  assert.deepEqual(created.tasks.map(t=>t.assignee_id),[3,4]);
+  assert.ok(created.tasks.every(t=>new Date(t.due_at).toISOString()==='2026-10-17T10:00:00.000Z'));
+  assert.match(created.message,/فهد/);assert.match(created.message,/خالد/);
+  assert.equal((await pool.query('SELECT * FROM task_notifications')).rows.length,2);
+  names=['فهد','نورة'];const denied=await chat({user_id:2,message:'لفهد ونورة'});assert.equal(denied.action_type,'rejection');
+  await assert.rejects(store.createMany(2,[3,5],'غير مسموح','2026-10-15T10:00:00+03:00'),/FORBIDDEN/);
+  names=['فهد','أحمد'];const unknown=await chat({user_id:2,message:'لفهد وأحمد'});assert.equal(unknown.action_type,'inquiry');
+  names=['فهد','خالد'];const employee=await chat({user_id:3,message:'لفهد وخالد'});assert.equal(employee.action_type,'rejection');
+  assert.equal((await pool.query('SELECT * FROM tasks')).rows.length,2);
+  names=['فهد','نورة'];const manager=await chat({user_id:1,message:'لفهد ونورة'});assert.equal(manager.tasks.length,2);
+ }finally{await pool.end();}
+});

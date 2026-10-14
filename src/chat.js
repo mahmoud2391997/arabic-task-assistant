@@ -59,8 +59,17 @@ export function createChat({ store, ai, clock = () => new Date() }) {
       }
     }
     let target;
-    if (intent.target === 'self') target = actor;
-    else if (intent.target === 'person') {
+    let recipients=[];
+    if(intent.action==='create_task'&&intent.assignee_names.length) {
+      for(const name of [...new Set(intent.assignee_names.map(n=>normalize(n).replace(/ /g,'')))]) {
+        const matches=users.filter(u=>normalize(u.name).replace(/ /g,'')===name);
+        if(matches.length!==1) return clarify('أحد أسماء الموظفين غير موجود أو غير واضح. لم تُسجل أي مهمة؛ حدد أسماء الموظفين المسجلين.');
+        recipients.push(matches[0]);
+      }
+      target=recipients[0];
+    }
+    if (!recipients.length && intent.target === 'self') target = actor;
+    else if (!recipients.length && intent.target === 'person') {
       const matches = users.filter(u => normalize(u.name).replace(/ /g,'') === normalize(intent.assignee_name).replace(/ /g,''));
       if (matches.length !== 1) return clarify('اسم الموظف غير موجود أو غير واضح. حدد اسم موظف مسجل.');
       target = matches[0];
@@ -77,7 +86,7 @@ export function createChat({ store, ai, clock = () => new Date() }) {
       }).join('\n') : 'لا توجد مهام في النطاق المطلوب.' });
     }
     if (!target) return clarify('حدد موظفاً واحداً لإسناد المهمة.');
-    if (!canAccess(actor, target)) return reject();
+    if (!canAccess(actor, target)||recipients.some(person=>!canAccess(actor,person))) return reject();
     if (!hasTaskDescription(intent.description)) return clarify('ما وصف المهمة المطلوب تسجيلها؟');
     let date = dateTokens[intent.date_kind];
     if (intent.date_kind === 'weekday') {
@@ -92,6 +101,10 @@ export function createChat({ store, ai, clock = () => new Date() }) {
     const due = schedule(`${date} ${workTime(intent.time,message)}`, now);
     if (!due.error&&new Date(due.dueAt)<now) return finish({action:'reject',action_type:'rejection',reply:'موعد المهمة لا يجوز أن يكون قبل الوقت الحالي. اختر موعداً قادماً.'});
     if (due.error) return finish({action:'reject',action_type:'rejection',reply:due.error});
+    if(recipients.length>1) {
+      const tasks=await store.createMany(actor.id,recipients.map(person=>person.id),intent.description.trim(),due.dueAt);
+      return {action:'create_task',tasks:tasks.map(task=>({...task,assignee_name:recipients.find(person=>person.id===task.assignee_id).name})),rescheduled:due.shifted,reply:`تم تسجيل المهمة لكل موظف بتاريخ ${due.date} الساعة ${due.time}:\n${tasks.map(task=>`#${task.id} المسند إليه: ${recipients.find(person=>person.id===task.assignee_id).name} — ${task.description}`).join('\n')}${due.shifted?'\nوافق الموعد الجمعة؛ رُحّلت المهام إلى السبت بنفس الوقت.':''}`};
+    }
     const task = await store.create(actor.id, target.id, intent.description.trim(), due.dueAt);
     return { action:'create_task', task_id:task.id, task, rescheduled:due.shifted,
       reply:`تم تسجيل المهمة لـ${target.name} بتاريخ ${due.date} الساعة ${due.time}.${due.shifted ? ' وافق الموعد يوم الجمعة، لذا رُحّلت إلى السبت بنفس الوقت.' : ''}` };

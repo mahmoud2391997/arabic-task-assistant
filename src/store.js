@@ -105,14 +105,25 @@ export class Store {
   }
   // Re-read identities inside the repository: callers cannot supply a forged role.
   async create(actorId, targetId, description, dueAt) {
+    return (await this.createMany(actorId,[targetId],description,dueAt))[0];
+  }
+  async createMany(actorId, targetIds, description, dueAt) {
+    if(!Array.isArray(targetIds)||!targetIds.length||targetIds.length>100) throw new Error('FORBIDDEN');
+    targetIds=[...new Set(targetIds)];
     const client = this.transactional ? this.pool : await this.pool.connect();
     try {
       if (!this.transactional) await client.query('BEGIN');
       const actor = (await client.query('SELECT * FROM employees WHERE id=$1 FOR SHARE', [actorId])).rows[0];
-      const target = (await client.query('SELECT * FROM employees WHERE id=$1 FOR SHARE', [targetId])).rows[0];
-      if (!actor || !target || !canAccess(actor, target)) throw new Error('FORBIDDEN');
+      const targets=[];
+      for(const targetId of targetIds) {
+        const target=(await client.query('SELECT * FROM employees WHERE id=$1 FOR SHARE',[targetId])).rows[0];
+        if(!actor||!target||!canAccess(actor,target)) throw new Error('FORBIDDEN');
+        targets.push(target);
+      }
       if (!Number.isFinite(new Date(dueAt).getTime())) throw new Error('INVALID_TASK_DATE');
       if(new Date(`${riyadhToday(new Date(dueAt))}T12:00:00Z`).getUTCDay()===5) throw new Error('FRIDAY_TASK_REQUIRES_RESCHEDULE');
+      const tasks=[];
+      for(const target of targets) {
       const task = (await client.query(`INSERT INTO tasks (assignee_id,created_by,description,due_at)
         VALUES ($1,$2,$3,$4) RETURNING *`, [target.id, actor.id, description, dueAt])).rows[0];
       await client.query('INSERT INTO audit_log (actor_id,action,details) VALUES ($1,$2,$3)',
@@ -120,8 +131,10 @@ export class Store {
       if(actor.id!==target.id&&['manager','supervisor'].includes(actor.role)) {
         await client.query('INSERT INTO task_notifications (recipient_id,actor_id,task_id) VALUES ($1,$2,$3)',[target.id,actor.id,task.id]);
       }
+      tasks.push(task);
+      }
       if (!this.transactional) await client.query('COMMIT');
-      return task;
+      return tasks;
     } catch (error) { if (!this.transactional) await client.query('ROLLBACK'); throw error; }
     finally { if (!this.transactional) client.release(); }
   }
