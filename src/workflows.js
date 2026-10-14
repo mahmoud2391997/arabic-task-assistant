@@ -85,16 +85,18 @@ export async function executeWorkflow({store,userId,intent,now,document,requireL
       const amount=type==='expense' ? intent.amount : null;
       if(type==='expense'&&amount==null) throw new WorkflowError('ما قيمة المصروفات بالريال السعودي؟');
       if(type==='expense'&&(!Number.isFinite(amount)||amount<=0||amount>999999999999||Math.abs(amount*100-Math.round(amount*100))>0.00001||intent.currency!=='SAR')) throw new WorkflowError('حدد مبلغ المصروفات بالريال السعودي، برقم موجب لا يزيد عن منزلتين عشريتين.');
-      const assigned=await approver(client,actor,type,amount);
+      const noApproval=type==='expense'&&actor.role==='supervisor'&&amount<=500;
+      const assigned=noApproval ? null : await approver(client,actor,type,amount);
       const reviewer=type==='sick_leave' ? null : assigned;
       const monitor=type==='sick_leave' ? assigned : null;
       const deadline=type==='sick_leave' ? addCalendarDays(date,2) : null;
-      const row=(await client.query(`INSERT INTO employee_requests (employee_id,approver_id,request_type,request_date,amount,description,status,report_deadline,created_at,monitor_id,end_date)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,[actor.id,reviewer?.id??null,type,date,amount,intent.description||'',type==='sick_leave'?'awaiting_report':'pending',deadline,now,monitor?.id??null,endDate])).rows[0];
-      await audit(client,actor.id,'create_request',{request_id:row.id,type,approver_id:reviewer?.id??null,monitor_id:monitor?.id??null});
+      const row=(await client.query(`INSERT INTO employee_requests (employee_id,approver_id,request_type,request_date,amount,description,status,report_deadline,created_at,monitor_id,end_date,decided_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,[actor.id,reviewer?.id??null,type,date,amount,intent.description||'',noApproval?'approved':type==='sick_leave'?'awaiting_report':'pending',deadline,now,monitor?.id??null,endDate,noApproval?now:null])).rows[0];
+      await audit(client,actor.id,'create_request',{request_id:row.id,type,approver_id:reviewer?.id??null,monitor_id:monitor?.id??null,no_approval_required:noApproval});
       const request=publicRequest(row,now);
       return {action:'create_request',request,reply:type==='sick_leave'
         ? `تم تسجيل العودة من الإجازة المرضية #${row.id}، بدون طلب موافقة مسبقة. المشرف ${monitor.name} يتابع وصول التقرير، ومهلته حتى نهاية ${deadline}. أرفق التقرير الطبي هنا خلال يومين كحد أقصى من العودة.${request.status==='report_overdue'?' التقرير متأخر؛ السياسة لا تحدد عقوبة.':''}`
+        : noApproval ? `تم تسجيل مصروفاتك #${row.id} بقيمة ${amount} ريال بدون انتظار موافقة؛ مصروفات المشرف لنفسه حتى 500 ريال لا تحتاج اعتماداً.`
         : `تم تقديم طلب ${names[type]} #${row.id} إلى صندوق طلبات ${reviewer.name}. الطلب بانتظار موافقته، ولم يُعتمد بعد.`};
     }
     if(intent.action==='review_report') {

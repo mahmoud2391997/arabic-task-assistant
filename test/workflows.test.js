@@ -218,3 +218,15 @@ test('manager audit view includes all operations and supervisor view includes on
   const denied=await chat({user_id:4,message:'سجل العمليات'});assert.equal(denied.action_type,'rejection');assert.equal(denied.entries,undefined);
  }finally{await close();}
 });
+
+test('supervisor own expenses up to 500 need no approval; over 500 route to manager without manager self-approval',async()=>{
+ const {run,pool,close}=await setup();try {
+ for(const user of [2,6]) for(const amount of [400,500]) {
+ const result=await run(user,{action:'create_request',request_type:'expense',amount,currency:'SAR'});
+ assert.equal(result.request.status,'approved');assert.equal(result.request.approver_id,null);assert.ok(result.request.decided_at);assert.match(result.reply,/بدون انتظار موافقة/);
+ }
+ const higher=await run(2,{action:'create_request',request_type:'expense',amount:509,currency:'SAR'});assert.equal(higher.request.status,'pending');assert.equal(higher.request.approver_id,1);
+ await assert.rejects(run(1,{action:'create_request',request_type:'expense',amount:600,currency:'SAR'}),/لا يوجد معتم/);
+ const logs=(await pool.query("SELECT details FROM audit_log WHERE action='create_request'")).rows;assert.equal(logs.filter(r=>r.details.no_approval_required).length,4);
+ }finally{await close();}
+});
